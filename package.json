@@ -1,0 +1,5 @@
+{
+  "name": "agentpilot-starter", "displayName": "AgentPilot Starter", "description": "Local-first agent events and notifications dashboard", "version": "0.1.0", "publisher": "agentpilot-local", "license": "MIT", "engines": {"vscode": "^1.90.0"}, "main": "./extension.js", "activationEvents": ["onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification"],
+  "contributes": {"commands": [{"command":"agentpilot.openDashboard","title":"AgentPilot: Open Dashboard"},{"command":"agentpilot.testNotification","title":"AgentPilot: Test Notification"}], "configuration": {"title":"AgentPilot", "properties": {"agentpilot.telegramBotToken":{"type":"string","default":"","description":"For local testing only; prefer secret environment variable AGENTPILOT_TELEGRAM_TOKEN. Never share this token."},"agentpilot.telegramChatId":{"type":"string","default":"","description":"Telegram chat ID; alternatively set AGENTPILOT_TELEGRAM_CHAT_ID."},"agentpilot.enableTelegram":{"type":"boolean","default":false},"agentpilot.enableDesktop":{"type":"boolean","default":true}}}},
+  "scripts":{"test":"node --test tests/*.test.js"}
+}
