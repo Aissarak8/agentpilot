@@ -1,52 +1,11 @@
-const vscode = require('vscode');
-const fs = require('fs');
-const path = require('path');
-const https = require('https');
-let panel; let watcher; let poller;
-function readEvents(file) {
-  try {
-    const raw = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).slice(-300);
-    return raw.map(line => { try {return JSON.parse(line)} catch {return null} }).filter(x => x && typeof x === 'object');
-  } catch {return []}
-}
-function escapeHtml(value) {return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function html(events) {
-  const rows = events.slice(-60).reverse().map(e=>`<tr><td>${escapeHtml(e.time||'')}</td><td>${escapeHtml(e.agent||'')}</td><td>${escapeHtml(e.kind||'')}</td><td>${escapeHtml(e.project||'')}</td></tr>`).join('');
-  const counts = ['claude','codex'].map(a=>`${a}: ${events.filter(e=>e.agent===a).length}`).join(' | ');
-  return `<!DOCTYPE html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>body{font-family:var(--vscode-font-family);padding:18px}h1{margin-top:0}table{width:100%;border-collapse:collapse}td,th{padding:9px;border-bottom:1px solid var(--vscode-panel-border);text-align:left}.stats{padding:12px;background:var(--vscode-editor-inactiveSelectionBackground);border-radius:8px}</style></head><body><h1>AgentPilot · Local Dashboard</h1><div class="stats">Events: ${events.length} | ${counts}</div><p>V1 displays hook events only. Token usage, costs, and recommendations are not yet implemented.</p><table><thead><tr><th>Time</th><th>Agent</th><th>Event</th><th>Project</th></tr></thead><tbody>${rows||'<tr><td colspan="4">No events yet. Run Test Notification.</td></tr>'}</tbody></table></body></html>`;
-}
-function postTelegram(token, chatId, message) {
-  return new Promise((resolve,reject)=>{
-    if(!/^[0-9]+:[A-Za-z0-9_-]+$/.test(token)) return reject(new Error('Invalid bot token format'));
-    const body = JSON.stringify({chat_id:chatId,text:message});
-    const req=https.request({hostname:'api.telegram.org',port:443,path:`/bot${token}/sendMessage`,method:'POST',headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)},timeout:8000},res=>{let data='';res.on('data',c=>data+=c);res.on('end',()=>res.statusCode===200?resolve():reject(new Error(`Telegram API HTTP ${res.statusCode}`)))});
-    req.on('timeout',()=>req.destroy(new Error('Telegram timeout')));req.on('error',reject);req.end(body);
-  });
-}
-function activate(context) {
-  const base=path.join(require('os').homedir(),'.agentpilot');fs.mkdirSync(base,{recursive:true});
-  const file=path.join(base,'events.jsonl');if(!fs.existsSync(file))fs.writeFileSync(file,'');
-  let previous=readEvents(file).length;
-  const config=()=>vscode.workspace.getConfiguration('agentpilot');
-  async function handleNew() {
-    const list=readEvents(file);
-    if (list.length < previous) {previous=0;}
-    const fresh=list.slice(previous);previous=list.length;
-    for(const e of fresh) {
-      if(config().get('enableDesktop',true)) vscode.window.showInformationMessage(`AgentPilot: ${e.agent||'Agent'} · ${e.kind||'event'}`);
-      if(config().get('enableTelegram',false)) {
-        const token=process.env.AGENTPILOT_TELEGRAM_TOKEN || config().get('telegramBotToken','');
-        const chat=process.env.AGENTPILOT_TELEGRAM_CHAT_ID || config().get('telegramChatId','');
-        if(token && chat) try {await postTelegram(token,chat,`AgentPilot: ${e.agent||'Agent'} · ${e.kind||'event'}\n${e.project||''}`)} catch(err){vscode.window.showWarningMessage(`AgentPilot Telegram failed: ${err.message}`)}
-      }
-    }
-    if(panel) panel.webview.html=html(list);
-  }
-  watcher=fs.watch(base,(event,name)=>{if(name==='events.jsonl')handleNew().catch(()=>{})});
-  poller=setInterval(()=>handleNew().catch(()=>{}),2500);
-  context.subscriptions.push(vscode.commands.registerCommand('agentpilot.openDashboard',()=>{panel=vscode.window.createWebviewPanel('agentpilot','AgentPilot Dashboard',vscode.ViewColumn.One,{});panel.webview.html=html(readEvents(file));panel.onDidDispose(()=>panel=undefined)}));
-  context.subscriptions.push(vscode.commands.registerCommand('agentpilot.testNotification',()=>{fs.appendFileSync(file,JSON.stringify({time:new Date().toISOString(),agent:'test',kind:'completed',project:'demo'})+'\n');handleNew()}));
-  context.subscriptions.push({dispose(){watcher?.close();clearInterval(poller)}});
-}
-function deactivate(){watcher?.close();clearInterval(poller)}
-module.exports={activate,deactivate,readEvents,escapeHtml};
+'use strict';
+const vscode=require('vscode');const fs=require('fs');const os=require('os');const path=require('path');const {spawn}=require('child_process');
+const {appendEvent,dashboardData,readEvents}=require('./core');
+let panel,watcher,poller,knownIds=new Set();
+function escapeHtml(value){return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function render(events){const data=dashboardData(events);const cards=[['All events',data.total],['Codex',data.codex],['Claude',data.claude],['Test events',data.tests]].map(([label,value])=>`<div class="card"><b>${value}</b><span>${label}</span></div>`).join('');const rows=data.recent.map(e=>`<tr class="${e.test?'test':''}"><td>${escapeHtml(new Date(e.time).toLocaleString())}</td><td><span class="pill">${escapeHtml(e.agent)}</span></td><td>${escapeHtml(e.kind)}</td><td>${escapeHtml(e.project)}</td><td>${e.test?'Test':'Real'}</td></tr>`).join('');return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'"><style>:root{color-scheme:dark}body{font-family:var(--vscode-font-family);padding:24px;color:var(--vscode-foreground);background:var(--vscode-editor-background)}header{display:flex;justify-content:space-between;align-items:end}h1{margin:0;font-size:24px}.muted{color:var(--vscode-descriptionForeground)}.cards{display:grid;grid-template-columns:repeat(4,minmax(110px,1fr));gap:12px;margin:24px 0}.card{padding:16px;border:1px solid var(--vscode-panel-border);border-radius:8px;background:var(--vscode-sideBar-background)}.card b{font-size:26px;display:block}.card span{color:var(--vscode-descriptionForeground)}.status{margin-bottom:16px}.pill{padding:2px 7px;border-radius:9px;background:var(--vscode-badge-background);color:var(--vscode-badge-foreground)}table{width:100%;border-collapse:collapse}th,td{padding:10px;text-align:left;border-bottom:1px solid var(--vscode-panel-border)}th{color:var(--vscode-descriptionForeground)}tr.test{opacity:.6}@media(max-width:650px){.cards{grid-template-columns:repeat(2,1fr)}}</style></head><body><header><div><h1>AgentPilot</h1><div class="muted">Local agent activity</div></div><div class="muted">Real events: ${data.real}</div></header><section class="cards">${cards}</section><div class="status">Codex: <b>${data.status.codex}</b> &nbsp; Claude: <b>${data.status.claude}</b> <span class="muted">(derived only from observed events)</span></div><table><thead><tr><th>Time</th><th>Agent</th><th>Event</th><th>Project</th><th>Source</th></tr></thead><tbody>${rows||'<tr><td colspan="5">No events captured yet.</td></tr>'}</tbody></table></body></html>`;}
+function shouldNotify(event,config){if(event.test)return false;if(event.kind==='completed')return config.get('enableNotifications',true);if(event.kind==='attention')return config.get('notifyOnAttention',true);if(event.kind==='failed')return config.get('notifyOnErrors',true);return false;}
+function nativeToast(context,message){if(process.platform!=='win32')return;const encode=s=>Buffer.from(s,'utf8').toString('base64');const child=spawn('powershell.exe',['-NoProfile','-NonInteractive','-ExecutionPolicy','Bypass','-File',context.asAbsolutePath('scripts/windows-toast.ps1'),encode('AgentPilot'),encode(message)],{windowsHide:true,stdio:'ignore'});child.on('error',error=>console.error('AgentPilot Windows notification failed',error));}
+function activate(context){const base=path.join(os.homedir(),'.agentpilot'),file=path.join(base,'events.jsonl');fs.mkdirSync(base,{recursive:true});if(!fs.existsSync(file))fs.writeFileSync(file,'');knownIds=new Set(readEvents(file).map(e=>e.id));const refresh=()=>{const events=readEvents(file);const fresh=events.filter(e=>!knownIds.has(e.id));for(const e of events)knownIds.add(e.id);const config=vscode.workspace.getConfiguration('agentpilot');for(const e of fresh){if(shouldNotify(e,config)){const message=`${e.agent} ${e.kind} · ${e.project}`;vscode.window.showInformationMessage(`AgentPilot: ${message}`);if(config.get('enableWindowsNotifications',false))nativeToast(context,message);}}if(panel)panel.webview.html=render(events);};watcher=fs.watch(base,(type,name)=>{if(name==='events.jsonl')refresh();});poller=setInterval(refresh,2500);context.subscriptions.push(vscode.commands.registerCommand('agentpilot.openDashboard',()=>{panel=vscode.window.createWebviewPanel('agentpilot','AgentPilot Dashboard',vscode.ViewColumn.One,{});panel.webview.html=render(readEvents(file));panel.onDidDispose(()=>panel=undefined);}));context.subscriptions.push(vscode.commands.registerCommand('agentpilot.testNotification',()=>{appendEvent(file,{time:new Date().toISOString(),agent:'test',kind:'completed',project:path.basename(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath||'demo'),source:'test',test:true});refresh();vscode.window.showInformationMessage('AgentPilot test event recorded (notifications for real events are unchanged).');}));context.subscriptions.push({dispose(){watcher?.close();clearInterval(poller);}});}
+function deactivate(){watcher?.close();clearInterval(poller);}
+module.exports={activate,deactivate,escapeHtml,render,shouldNotify};

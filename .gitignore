@@ -1,0 +1,18 @@
+# Local diagnostics and agent event data
+debug.log
+*.log
+*.jsonl
+.agentpilot/
+
+# Local credentials and environment files
+.env
+.env.*
+auth.json
+credentials.json
+*.key
+*.pem
+
+# Generated caches
+__pycache__/
+*.py[cod]
+node_modules/
