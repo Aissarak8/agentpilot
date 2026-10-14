@@ -5,6 +5,6 @@
     "Stop": [{"hooks":[{"type":"command","command":"python3 \"$(git rev-parse --show-toplevel)/scripts/hook.py\" codex auto","commandWindows":"python (Join-Path (git rev-parse --show-toplevel) 'scripts/hook.py') codex auto","timeout":10}]}],
     "PermissionRequest": [{"hooks":[{"type":"command","command":"python3 \"$(git rev-parse --show-toplevel)/scripts/hook.py\" codex auto","commandWindows":"python (Join-Path (git rev-parse --show-toplevel) 'scripts/hook.py') codex auto","timeout":10}]}],
     "Interrupt": [{"hooks":[{"type":"command","command":"python3 \"$(git rev-parse --show-toplevel)/scripts/hook.py\" codex auto","commandWindows":"python (Join-Path (git rev-parse --show-toplevel) 'scripts/hook.py') codex auto","timeout":3}]}],
-    "SessionEnd": [{"hooks":[{"type":"command","command":"python3 \"$(git rev-parse --show-toplevel)/scripts/hook.py\" codex auto","commandWindows":"python (Join-Path (git rev-parse --show-toplevel) 'scripts/hook.py') codex auto","timeout":10}]}]
+    "SessionEnd": [{"hooks":[{"type":"command","command":"python3 \"$(git rev-parse --show-toplevel)/scripts/hook.py\" codex auto","commandWindows":"python (Join-Path (git rev-parse --show-toplevel) 'scripts/hook.py') codex auto","timeout":3}]}]
   }
 }

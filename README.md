@@ -42,8 +42,9 @@ The installed OpenAI Codex VS Code extension does not publish a VS Code extensio
 Status for v0.2:
 
 - Codex hook payload parsing and storage: automated integration-tested with representative official payload fields.
-- Codex CLI real turn: not verified on the development machine because its `@openai/codex-win32-x64` package is missing.
+- Codex CLI real turn: verified on Windows with the official `codex.exe` bundled by the Codex VS Code extension. The separate global npm installation remains incomplete because its optional `@openai/codex-win32-x64` package is missing.
 - Codex VS Code extension real turn: not verified; enable only after confirming a real hook event appears locally for your installed extension version.
+- Hook payloads identify Codex, session, and turn, but do not identify the client surface. CLI versus VS Code attribution therefore requires correlation with the initiating client/session and is not inferred in stored events.
 - Agent failures: no documented local lifecycle hook in the tested interface exposes a general turn-failed event, so AgentPilot does not invent one. The adapter accepts `failed` for providers that explicitly supply it.
 
 Official references: [Codex lifecycle hooks](https://learn.chatgpt.com/docs/hooks) and [Codex configuration reference](https://learn.chatgpt.com/docs/config-file/config-reference).
