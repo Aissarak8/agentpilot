@@ -7,14 +7,15 @@
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram"],
+  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity"],
   "contributes": {
     "commands": [
       { "command": "agentpilot.openDashboard", "title": "AgentPilot: Open Dashboard" },
       { "command": "agentpilot.testNotification", "title": "AgentPilot: Test Local Notification" },
       { "command": "agentpilot.configureTelegramToken", "title": "AgentPilot: Configure Telegram Bot Token" },
       { "command": "agentpilot.configureTelegramChatId", "title": "AgentPilot: Configure Telegram Chat ID" },
-      { "command": "agentpilot.testTelegram", "title": "AgentPilot: Test Telegram Notification" }
+      { "command": "agentpilot.testTelegram", "title": "AgentPilot: Test Telegram Notification" },
+      { "command": "agentpilot.diagnoseTelegramConnectivity", "title": "AgentPilot: Diagnose Telegram Connectivity" }
     ],
     "configuration": {
       "title": "AgentPilot",

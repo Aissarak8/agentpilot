@@ -1,7 +1,8 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const { EventEmitter } = require('node:events');
-const { TelegramDelivery, describeTelegramError, formatTelegramMessage, telegramRequest, validToken } = require('../telegram');
+const zlib = require('node:zlib');
+const { TelegramDelivery, describeTelegramError, formatTelegramMessage, safeTelegramDiagnostic, telegramRequest, validToken } = require('../telegram');
 
 const event = { id:'evt-1', time:'2026-10-14T10:30:00.000Z', agent:'codex', kind:'completed', project:'agentpilot', test:false };
 
@@ -61,6 +62,29 @@ test('provides actionable sanitized error messages', () => {
   assert.match(describeTelegramError({code:'timeout'}),/timeout/);
   assert.match(describeTelegramError({code:'network'}),/api\.telegram\.org/);
   assert.doesNotMatch(describeTelegramError({code:'unknown',message:'12345:secret'}),/12345:secret/);
+});
+
+test('decodes compressed Telegram JSON responses', async () => {
+  const requestImpl=(options,callback)=>{const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{const res=new EventEmitter();res.statusCode=200;res.headers={'content-type':'application/json; charset=utf-8','content-encoding':'gzip'};callback(res);res.emit('data',zlib.gzipSync(Buffer.from('{"ok":true,"result":{"id":7}}')));res.emit('end');};return req;};
+  assert.deepEqual(await telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','getMe',{}, {requestImpl}),{id:7});
+});
+
+test('classifies malformed compressed responses without exposing bytes', async () => {
+  const requestImpl=(options,callback)=>{const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{const res=new EventEmitter();res.statusCode=200;res.headers={'content-type':'application/json','content-encoding':'gzip'};callback(res);res.emit('data',Buffer.from('PRIVATE'));res.emit('end');};return req;};
+  await assert.rejects(telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','getMe',{}, {requestImpl}),error=>error.code==='decompression_failed'&&!JSON.stringify(error).includes('PRIVATE'));
+});
+
+test('classifies redirects and non-JSON responses without retaining bodies', async () => {
+  const response=(status,headers,body)=>(options,callback)=>{const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{const res=new EventEmitter();res.statusCode=status;res.headers=headers;res.resume=()=>{};callback(res);if(body!==undefined){res.emit('data',body);res.emit('end');}};return req;};
+  await assert.rejects(telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','getMe',{}, {requestImpl:response(302,{location:'https://portal.invalid'},undefined)}),error=>error.code==='redirect'&&error.diagnostic.redirect===true);
+  await assert.rejects(telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','getMe',{}, {requestImpl:response(200,{'content-type':'text/html'},'<private html>')}),error=>error.code==='non_json_response'&&!JSON.stringify(error).includes('private html'));
+  await assert.rejects(telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','getMe',{}, {requestImpl:response(200,{'content-type':'application/json'},'not json')}),error=>error.code==='invalid_json'&&!JSON.stringify(error).includes('not json'));
+});
+
+test('safe diagnostics expose metadata only', () => {
+  const diagnostic=safeTelegramDiagnostic({code:'invalid_json',httpStatus:200,message:'PRIVATE',diagnostic:{contentType:'application/json',contentEncoding:'br',responseBytes:42,redirect:false,body:'SECRET'}});
+  assert.deepEqual(diagnostic,{category:'invalid_json',httpStatus:200,contentType:'application/json',contentEncoding:'br',responseBytes:42,redirect:false});
+  assert.doesNotMatch(JSON.stringify(diagnostic),/PRIVATE|SECRET/);
 });
 
 test('permission and session-end events are deliverable', async () => {

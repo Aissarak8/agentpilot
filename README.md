@@ -93,6 +93,7 @@ The suite covers normalization, v0.1 compatibility, malformed records, local sto
 - **Malformed JSONL line:** it is ignored safely; later valid lines still load.
 - **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the last-delivery field reports the latest network result.
 - **Telegram test fails:** make sure the bot has received `/start`, the chat ID is correct, and local firewall/proxy policy allows `https://api.telegram.org`.
+- **Telegram token validation reports a response or proxy error:** run **AgentPilot: Diagnose Telegram Connectivity** in the Extension Development Host, then open **View → Output** and select **AgentPilot**. The diagnostic uses a synthetic invalid token and records only the error category, HTTP status, content type, content encoding, response byte count, and redirect flag—never a token, URL, authorization value, or response body. An `invalid_token` result with HTTP 401 and `application/json` confirms that the Extension Host can reach the Bot API; it does not validate your stored token.
 
 ## Known limitations
 
