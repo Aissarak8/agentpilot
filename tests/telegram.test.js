@@ -83,8 +83,13 @@ test('classifies redirects and non-JSON responses without retaining bodies', asy
 
 test('safe diagnostics expose metadata only', () => {
   const diagnostic=safeTelegramDiagnostic({code:'invalid_json',httpStatus:200,message:'PRIVATE',diagnostic:{contentType:'application/json',contentEncoding:'br',responseBytes:42,redirect:false,body:'SECRET'}});
-  assert.deepEqual(diagnostic,{category:'invalid_json',httpStatus:200,contentType:'application/json',contentEncoding:'br',responseBytes:42,redirect:false});
+  assert.deepEqual(diagnostic,{category:'invalid_json',httpStatus:200,contentType:'application/json',contentEncoding:'br',responseBytes:42,redirect:false,retryAfter:0});
   assert.doesNotMatch(JSON.stringify(diagnostic),/PRIVATE|SECRET/);
+});
+
+test('extracts a bounded Telegram retry_after value', async () => {
+  const requestImpl=(options,callback)=>{const req=new EventEmitter();req.destroy=()=>{};req.end=()=>{const res=new EventEmitter();res.statusCode=429;res.headers={'content-type':'application/json'};callback(res);res.emit('data','{"ok":false,"parameters":{"retry_after":17}}');res.emit('end');};return req;};
+  await assert.rejects(telegramRequest('12345:abcdefghijklmnopqrstuvwxyz','sendMessage',{}, {requestImpl}),error=>safeTelegramDiagnostic(error).retryAfter===17);
 });
 
 test('permission and session-end events are deliverable', async () => {

@@ -43,7 +43,8 @@ function describeTelegramError(error) {
 
 function safeTelegramDiagnostic(error) {
   const source = error?.diagnostic || {};
-  return { category:error?.code || 'unknown', httpStatus:Number(error?.httpStatus || source.httpStatus || 0), contentType:String(source.contentType || 'unknown').slice(0, 80), contentEncoding:String(source.contentEncoding || 'identity').slice(0, 40), responseBytes:Number(source.responseBytes || 0), redirect:Boolean(source.redirect) };
+  const retryAfter = Math.min(86400, Math.max(0, Number(source.retryAfter || 0)));
+  return { category:error?.code || 'unknown', httpStatus:Number(error?.httpStatus || source.httpStatus || 0), contentType:String(source.contentType || 'unknown').slice(0, 80), contentEncoding:String(source.contentEncoding || 'identity').slice(0, 40), responseBytes:Number(source.responseBytes || 0), redirect:Boolean(source.redirect), retryAfter };
 }
 
 function decodeResponse(buffer, encoding, callback) {
@@ -83,6 +84,7 @@ function telegramRequest(token, method, payload, options = {}) {
             diagnostic.responseBytes=decoded.length;
             if (contentType && contentType !== 'application/json') return finish(reject, new TelegramError('non_json_response',`Telegram returned ${contentType}`,status,diagnostic));
             let parsed; try { parsed=JSON.parse(decoded.toString('utf8')); } catch { return finish(reject,new TelegramError('invalid_json','Telegram JSON parsing failed',status,diagnostic)); }
+            if (status === 429) diagnostic.retryAfter=Math.min(86400,Math.max(0,Number(parsed?.parameters?.retry_after || 0)));
             if(status>=200&&status<300&&parsed.ok===true)return finish(resolve,parsed.result);
             if(status===401)return finish(reject,new TelegramError('invalid_token','Telegram rejected the bot token (HTTP 401)',status,diagnostic));
             if(status===403)return finish(reject,new TelegramError('forbidden','Telegram denied the request (HTTP 403)',status,diagnostic));
