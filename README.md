@@ -1,6 +1,6 @@
-# AgentPilot v0.2
+# AgentPilot v0.3
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events. Version 0.2 adds a metadata-only Codex hook adapter, normalized local storage, deduplicated notifications, and a VS Code-native dashboard. It never stores source code, prompts, assistant messages, transcripts, tokens, or credentials.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events. Version 0.3 adds optional Telegram Bot API notifications while preserving the metadata-only Codex integration. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
 
 ## Install and run on Windows 11
 
@@ -57,13 +57,31 @@ Official references: [Codex lifecycle hooks](https://learn.chatgpt.com/docs/hook
 
 Settings under **VS Code Settings → AgentPilot** control completed-turn, attention, and error notifications. VS Code notifications are enabled by default. Optional native Windows toasts are disabled by default and use only the bundled local PowerShell script; they require no administrator rights or network access. Events are deduplicated by stable event ID, so watcher and polling fallback cannot notify twice.
 
+## Telegram notifications
+
+Telegram delivery uses the official HTTPS Bot API. The bot token and chat ID are stored in VS Code SecretStorage and are never written to settings, environment variables, hook arguments, the event log, or the repository. The hook process does not access Telegram credentials; the running AgentPilot extension observes the local metadata event store and performs delivery independently. A Telegram failure therefore cannot interrupt Codex.
+
+Setup:
+
+1. Create a bot with Telegram's official **@BotFather** and keep the token private.
+2. Open the destination chat and send the bot `/start`. For a channel, add the bot with permission to post.
+3. Obtain the numeric chat ID through a trusted Telegram workflow, or use a public channel username such as `@example_channel`. Do not paste the bot token into source files, shell history, issue reports, or logs.
+4. In VS Code run **AgentPilot: Configure Telegram Bot Token**. AgentPilot validates it with the Bot API `getMe` method before storing it in SecretStorage.
+5. Run **AgentPilot: Configure Telegram Chat ID**.
+6. Enable **AgentPilot: Enable Telegram** in Settings or from the dashboard.
+7. Run **AgentPilot: Test Telegram Notification** and confirm receipt.
+
+Real notifications contain only agent name, normalized event type, project name, and timestamp. They are sent for completed turns, permission requests, and session end. Delivery has an eight-second timeout, stable-ID deduplication, and a ten-message-per-minute safety cap. The dashboard shows configured connection state and the latest runtime delivery result, never credentials.
+
+Telegram delivery is verified for events written by the Codex CLI hook integration. Codex VS Code Extension completion hooks remain unverified, so Telegram delivery for IDE-hosted Codex turns is not claimed.
+
 ## Tests
 
 ```powershell
 npm test
 ```
 
-The suite covers normalization, v0.1 compatibility, malformed records, local storage, duplicate prevention, dashboard aggregation/status, HTML escaping, Codex payload mapping, and exclusion of private payload fields.
+The suite covers normalization, v0.1 compatibility, malformed records, local storage, duplicate prevention, dashboard aggregation/status, HTML escaping, Codex payload mapping, exclusion of private payload fields, Telegram formatting, disabled and missing configuration, delivery failures, HTTP error sanitization, and Telegram deduplication.
 
 ## Troubleshooting
 
@@ -73,7 +91,10 @@ The suite covers normalization, v0.1 compatibility, malformed records, local sto
 - **No event in the dashboard:** run the manual smoke test, inspect `%USERPROFILE%\.agentpilot\events.jsonl`, then use **Developer: Toggle Developer Tools** for AgentPilot errors.
 - **No Windows toast:** keep VS Code notifications enabled; Windows toast APIs or notification policy may be unavailable. Agent tracking continues regardless.
 - **Malformed JSONL line:** it is ignored safely; later valid lines still load.
+- **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the last-delivery field reports the latest network result.
+- **Telegram test fails:** make sure the bot has received `/start`, the chat ID is correct, and local firewall/proxy policy allows `https://api.telegram.org`.
+- **Telegram token validation reports a response or proxy error:** run **AgentPilot: Diagnose Telegram Connectivity** in the Extension Development Host, then open **View → Output** and select **AgentPilot**. The diagnostic uses a synthetic invalid token and records only the error category, HTTP status, content type, content encoding, response byte count, and redirect flag—never a token, URL, authorization value, or response body. An `invalid_token` result with HTTP 401 and `application/json` confirms that the Extension Host can reach the Bot API; it does not validate your stored token.
 
 ## Known limitations
 
-Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Storage is capped to the newest 500 records in the dashboard read path. Claude configuration and Telegram are outside v0.2 scope. Token analytics, cost comparison, and model recommendations remain future work.
+Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Storage is capped to the newest 500 records in the dashboard read path. Telegram delivery requires the VS Code extension host to be running. Token analytics, cost comparison, and model recommendations remain future work.
