@@ -2,16 +2,19 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": ["onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification"],
+  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram"],
   "contributes": {
     "commands": [
       { "command": "agentpilot.openDashboard", "title": "AgentPilot: Open Dashboard" },
-      { "command": "agentpilot.testNotification", "title": "AgentPilot: Test Notification" }
+      { "command": "agentpilot.testNotification", "title": "AgentPilot: Test Local Notification" },
+      { "command": "agentpilot.configureTelegramToken", "title": "AgentPilot: Configure Telegram Bot Token" },
+      { "command": "agentpilot.configureTelegramChatId", "title": "AgentPilot: Configure Telegram Chat ID" },
+      { "command": "agentpilot.testTelegram", "title": "AgentPilot: Test Telegram Notification" }
     ],
     "configuration": {
       "title": "AgentPilot",
@@ -20,6 +23,7 @@
         "agentpilot.enableWindowsNotifications": {"type":"boolean","default":false,"description":"Also show a native Windows toast when PowerShell and Windows toast APIs are available."},
         "agentpilot.notifyOnAttention": {"type":"boolean","default":true,"description":"Show notifications when a real agent event requires user interaction."},
         "agentpilot.notifyOnErrors": {"type":"boolean","default":true,"description":"Show notifications for real agent errors."}
+        ,"agentpilot.enableTelegram": {"type":"boolean","default":false,"description":"Send selected AgentPilot events through Telegram. The token and chat ID are stored in VS Code SecretStorage."}
       }
     }
   },
