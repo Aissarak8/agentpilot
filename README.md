@@ -1,6 +1,6 @@
-# AgentPilot v0.3
+# AgentPilot v0.3.1
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events. Version 0.3 adds optional Telegram Bot API notifications while preserving the metadata-only Codex integration. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events. Version 0.3.1 adds reliable, persistent Telegram delivery while preserving the metadata-only Codex integration. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
 
 ## Install and run on Windows 11
 
@@ -15,7 +15,7 @@ code .
 
 Press **F5** to launch an Extension Development Host. In that window run **AgentPilot: Open Dashboard**. **AgentPilot: Test Notification** writes a clearly labeled test event; test events never trigger the real-event notification rules.
 
-All data stays in `%USERPROFILE%\.agentpilot\events.jsonl`. Existing v0.1 JSONL records remain readable. Delete that file to clear the history.
+All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`; sanitized Telegram delivery metadata uses `telegram-deliveries.json`. The delivery file never contains the bot token or chat ID.
 
 ## Codex CLI integration
 
@@ -71,7 +71,11 @@ Setup:
 6. Enable **AgentPilot: Enable Telegram** in Settings or from the dashboard.
 7. Run **AgentPilot: Test Telegram Notification** and confirm receipt.
 
-Real notifications contain only agent name, normalized event type, project name, and timestamp. They are sent for completed turns, permission requests, and session end. Delivery has an eight-second timeout, stable-ID deduplication, and a ten-message-per-minute safety cap. The dashboard shows configured connection state and the latest runtime delivery result, never credentials.
+Real notifications contain only agent name, normalized event type, project name, and timestamp. Completed turns and permission requests are queued using their stable source event IDs. A normal `SessionEnd` after `Stop` is suppressed; an independently configurable exceptional SessionEnd notification can be sent when no completion was observed.
+
+Delivery metadata survives Extension Host restarts and records pending, sending, sent, failed, or uncertain state, attempt count, sanitized error category, next retry time, and Telegram message ID when Telegram confirms one. HTTP 429 honors Telegram's bounded `retry_after`; selected HTTP 5xx failures use bounded exponential backoff with jitter. HTTP 401 and 403 are terminal. A timeout, network disconnect, or extension restart during a send is **uncertain** because Telegram may already have received it, so AgentPilot never retries it automatically. Check the chat before using the dashboard's manual Retry action.
+
+The queue is capped at 500 records and written atomically. Only one in-process worker may claim a delivery, with at most ten attempts per minute. Disabling Telegram prevents new attempts and prevents newly observed events from being queued. Enabling it later does not backfill historical events; use an explicit test notification instead.
 
 Telegram delivery is verified for events written by the Codex CLI hook integration. Codex VS Code Extension completion hooks remain unverified, so Telegram delivery for IDE-hosted Codex turns is not claimed.
 
@@ -81,7 +85,17 @@ Telegram delivery is verified for events written by the Codex CLI hook integrati
 npm test
 ```
 
-The suite covers normalization, v0.1 compatibility, malformed records, local storage, duplicate prevention, dashboard aggregation/status, HTML escaping, Codex payload mapping, exclusion of private payload fields, Telegram formatting, disabled and missing configuration, delivery failures, HTTP error sanitization, and Telegram deduplication.
+The suite covers normalization, v0.1 compatibility, malformed records, local storage, dashboard aggregation, Codex payload privacy, Telegram formatting and parsing, persistent deduplication, restart recovery, worker concurrency, 401/403/429/5xx handling, timeout uncertainty, backoff, disabled and missing configuration, SessionEnd suppression, privacy, and manual retries.
+
+## Manual reliability validation
+
+1. Start the Extension Development Host, configure Telegram through AgentPilot, enable it, and keep the dashboard open.
+2. From this trusted repository, run a harmless real Codex CLI turn and complete it. Confirm the resulting `Stop` record in `%USERPROFILE%\.agentpilot\events.jsonl` has `source: hook` and `test: false`.
+3. Confirm one completion notification arrives in Telegram and the dashboard delivery row becomes **sent**, with one attempt. The following normal SessionEnd must not create a second delivery row.
+4. For restart recovery, disable Telegram, enqueue a test only after re-enabling, or use a controlled test build that leaves a delivery pending; restart the Extension Development Host and confirm the pending row resumes. Never terminate while a real request is in flight merely to test this with a production chat.
+5. For timeout safety, use a test-injected timeout in the automated suite. Confirm the row becomes **uncertain** with no automatic retry. In a manual environment, retry an uncertain row only after checking Telegram and accepting the duplicate warning.
+
+These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks remain unverified and are not claimed.
 
 ## Troubleshooting
 
@@ -91,10 +105,12 @@ The suite covers normalization, v0.1 compatibility, malformed records, local sto
 - **No event in the dashboard:** run the manual smoke test, inspect `%USERPROFILE%\.agentpilot\events.jsonl`, then use **Developer: Toggle Developer Tools** for AgentPilot errors.
 - **No Windows toast:** keep VS Code notifications enabled; Windows toast APIs or notification policy may be unavailable. Agent tracking continues regardless.
 - **Malformed JSONL line:** it is ignored safely; later valid lines still load.
-- **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the last-delivery field reports the latest network result.
+- **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the delivery history reports each queued result.
 - **Telegram test fails:** make sure the bot has received `/start`, the chat ID is correct, and local firewall/proxy policy allows `https://api.telegram.org`.
+- **Delivery is uncertain:** Telegram may already have accepted the request. Check the destination before selecting **Retry**; manual retry can produce a duplicate.
+- **Pending delivery remains pending:** confirm Telegram is enabled and credentials are configured. HTTP 429 and selected 5xx responses show a future retry time in the local delivery record.
 - **Telegram token validation reports a response or proxy error:** run **AgentPilot: Diagnose Telegram Connectivity** in the Extension Development Host, then open **View → Output** and select **AgentPilot**. The diagnostic uses a synthetic invalid token and records only the error category, HTTP status, content type, content encoding, response byte count, and redirect flag—never a token, URL, authorization value, or response body. An `invalid_token` result with HTTP 401 and `application/json` confirms that the Extension Host can reach the Bot API; it does not validate your stored token.
 
 ## Known limitations
 
-Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Storage is capped to the newest 500 records in the dashboard read path. Telegram delivery requires the VS Code extension host to be running. Token analytics, cost comparison, and model recommendations remain future work.
+Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained queue history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Token analytics, cost comparison, and model recommendations remain future work.

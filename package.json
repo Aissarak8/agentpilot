@@ -2,7 +2,7 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
@@ -24,7 +24,8 @@
         "agentpilot.enableWindowsNotifications": {"type":"boolean","default":false,"description":"Also show a native Windows toast when PowerShell and Windows toast APIs are available."},
         "agentpilot.notifyOnAttention": {"type":"boolean","default":true,"description":"Show notifications when a real agent event requires user interaction."},
         "agentpilot.notifyOnErrors": {"type":"boolean","default":true,"description":"Show notifications for real agent errors."}
-        ,"agentpilot.enableTelegram": {"type":"boolean","default":false,"description":"Send selected AgentPilot events through Telegram. The token and chat ID are stored in VS Code SecretStorage."}
+        ,"agentpilot.enableTelegram": {"type":"boolean","default":false,"description":"Send selected AgentPilot events through Telegram. The token and chat ID are stored in VS Code SecretStorage."},
+        "agentpilot.telegramNotifyExceptionalSessionEnd": {"type":"boolean","default":true,"description":"Notify when a session ends without an observed completed turn. Normal SessionEnd events following Stop are suppressed."}
       }
     }
   },

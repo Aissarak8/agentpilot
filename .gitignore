@@ -2,6 +2,7 @@
 debug.log
 *.log
 *.jsonl
+telegram-deliveries.json
 .agentpilot/
 
 # Local credentials and environment files
