@@ -39,6 +39,10 @@ The repo-local setup is reversible: remove `.codex/hooks.json` (or disable its e
 
 The installed OpenAI Codex VS Code extension does not publish a VS Code extension API for turn-completion events. Official Codex documentation describes lifecycle hooks for local Codex threads, but CLI support alone is not proof that every VS Code extension build executes repo-local hooks. AgentPilot therefore does not scrape the Codex UI or use private extension internals.
 
+The tested Windows extension (`openai.chatgpt` 26.908.40401) does not expose `/hooks` in its IDE slash-command menu, VS Code commands, or extension settings. Hook review and trust are currently documented for the Codex CLI TUI. To test whether CLI-established trust is shared with a new local IDE thread, launch the official Codex CLI from this repository, run `/hooks`, review and trust `.codex/hooks.json`, exit, and then start a new IDE chat in `/local` mode. This is a verification path, not a claim that the installed IDE build supports command hooks.
+
+If the IDE still emits no matching event after CLI trust and a new local chat, treat IDE command-hook integration as unavailable for that build. Keep the verified CLI integration; do not use UI scraping or private extension APIs. For a separately built supported client, Codex app-server provides documented streamed lifecycle events, but AgentPilot does not attach to or intercept the private app-server instance owned by the OpenAI VS Code extension.
+
 Status for v0.2:
 
 - Codex hook payload parsing and storage: automated integration-tested with representative official payload fields.
