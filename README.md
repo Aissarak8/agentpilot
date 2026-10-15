@@ -55,7 +55,9 @@ Official references: [Codex lifecycle hooks](https://learn.chatgpt.com/docs/hook
 
 ## Notifications
 
-Settings under **VS Code Settings → AgentPilot** control completed-turn, attention, and error notifications. VS Code notifications are enabled by default. Optional native Windows toasts are disabled by default and use only the bundled local PowerShell script; they require no administrator rights or network access. Events are deduplicated by stable event ID, so watcher and polling fallback cannot notify twice.
+Settings under **VS Code Settings → AgentPilot** control completed-turn, attention, and error notifications. VS Code notifications are enabled by default. Optional native Windows notifications are disabled by default and use only the bundled local PowerShell script; they require no administrator rights, module installation, or network access. Events are deduplicated by stable event ID, so watcher and polling fallback cannot notify twice.
+
+On Windows, AgentPilot first uses the registered Visual Studio Code AppUserModelID (`Microsoft.VisualStudioCode`). Some Windows builds reject a toast created by a helper PowerShell process with `E_ACCESSDENIED`; AgentPilot then uses the standard Windows notification-area balloon API. Run **AgentPilot: Test Windows Notification** to test this path independently of agent events. The **AgentPilot** output channel records only a sanitized category, exit code, and HRESULT. A successful API call cannot prove that a banner was visible because Do Not Disturb, Focus Assist, or Windows notification-center policy may silently route or suppress it.
 
 ## Telegram notifications
 
@@ -104,6 +106,7 @@ These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks rem
 - **Missing `@openai/codex-win32-x64`:** reinstall the official Codex CLI package, then confirm `codex.cmd --version` works before testing a real turn.
 - **No event in the dashboard:** run the manual smoke test, inspect `%USERPROFILE%\.agentpilot\events.jsonl`, then use **Developer: Toggle Developer Tools** for AgentPilot errors.
 - **No Windows toast:** keep VS Code notifications enabled; Windows toast APIs or notification policy may be unavailable. Agent tracking continues regardless.
+- **Test Windows notification:** run **AgentPilot: Test Windows Notification**, then inspect **View → Output → AgentPilot**. `sent` means the toast API accepted it; `balloon_fallback` means Windows rejected the helper's toast identity and AgentPilot used the notification-area fallback. If neither is visible, turn off Do Not Disturb/Focus Assist and check **Settings → System → Notifications**, including Visual Studio Code and Windows PowerShell notification permissions.
 - **Malformed JSONL line:** it is ignored safely; later valid lines still load.
 - **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the delivery history reports each queued result.
 - **Telegram test fails:** make sure the bot has received `/start`, the chat ID is correct, and local firewall/proxy policy allows `https://api.telegram.org`.
