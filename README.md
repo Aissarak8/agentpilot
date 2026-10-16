@@ -1,6 +1,6 @@
-# AgentPilot v0.3.1
+# AgentPilot v0.4
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events. Version 0.3.1 adds reliable, persistent Telegram delivery while preserving the metadata-only Codex integration. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.4 adds local usage and API-cost analytics while preserving reliable Telegram and Windows notifications. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
 
 ## Install and run on Windows 11
 
@@ -15,7 +15,7 @@ code .
 
 Press **F5** to launch an Extension Development Host. In that window run **AgentPilot: Open Dashboard**. **AgentPilot: Test Notification** writes a clearly labeled test event; test events never trigger the real-event notification rules.
 
-All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`; sanitized Telegram delivery metadata uses `telegram-deliveries.json`. The delivery file never contains the bot token or chat ID.
+All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`, usage metadata uses `usage.json`, and sanitized Telegram delivery metadata uses `telegram-deliveries.json`. These files never contain bot credentials, prompts, source code, or conversation text.
 
 ## Codex CLI integration
 
@@ -55,7 +55,9 @@ Official references: [Codex lifecycle hooks](https://learn.chatgpt.com/docs/hook
 
 ## Notifications
 
-Settings under **VS Code Settings → AgentPilot** control completed-turn, attention, and error notifications. VS Code notifications are enabled by default. Optional native Windows toasts are disabled by default and use only the bundled local PowerShell script; they require no administrator rights or network access. Events are deduplicated by stable event ID, so watcher and polling fallback cannot notify twice.
+Settings under **VS Code Settings → AgentPilot** control completed-turn, attention, and error notifications. VS Code notifications are enabled by default. Optional native Windows notifications are disabled by default and use only the bundled local PowerShell script; they require no administrator rights, module installation, or network access. Events are deduplicated by stable event ID, so watcher and polling fallback cannot notify twice.
+
+On Windows, AgentPilot first uses the registered Visual Studio Code AppUserModelID (`Microsoft.VisualStudioCode`). Some Windows builds reject a toast created by a helper PowerShell process with `E_ACCESSDENIED`; AgentPilot then uses the standard Windows notification-area balloon API. Run **AgentPilot: Test Windows Notification** to test this path independently of agent events. The **AgentPilot** output channel records only a sanitized category, exit code, and HRESULT. A successful API call cannot prove that a banner was visible because Do Not Disturb, Focus Assist, or Windows notification-center policy may silently route or suppress it.
 
 ## Telegram notifications
 
@@ -79,13 +81,61 @@ The queue is capped at 500 records and written atomically. Only one in-process w
 
 Telegram delivery is verified for events written by the Codex CLI hook integration. Codex VS Code Extension completion hooks remain unverified, so Telegram delivery for IDE-hosted Codex turns is not claimed.
 
+## Token usage and cost analytics
+
+AgentPilot records usage only when an official structured payload explicitly contains token counts. Lifecycle hook activity is never converted into guessed usage.
+
+- **Claude Code:** the documented status-line JSON includes `context_window.current_usage`, model, session, prompt, and project information. Configure Claude Code's `statusLine.command` to pipe that JSON to this repository's local collector:
+
+  ```json
+  {
+    "statusLine": {
+      "type": "command",
+      "command": "node C:\\absolute\\path\\to\\agentpilot\\scripts\\usage.js claude-statusline"
+    }
+  }
+  ```
+
+  Preserve other Claude settings when adding this entry. The collector reads stdin only, stores no conversation content, and repeated status-line invocations are deduplicated by session, prompt, model, and counts. Claude documents these fields as current-context/latest-response usage, not cumulative billing data.
+
+- **Codex:** the verified lifecycle hook payload does not provide token counts. Use **AgentPilot: Import Structured Usage JSON** only with JSON/JSONL exported by an official Codex surface that includes a `usage` object. AgentPilot accepts `input_tokens`, `cached_input_tokens`, `output_tokens`, optional `reasoning_tokens`, model, session/thread, and turn IDs. It does not scan Codex sessions, attach to the VS Code extension's private app server, or infer counts. The Codex VS Code extension path remains unverified.
+
+Usage is stored atomically in `%USERPROFILE%\.agentpilot\usage.json`, capped at 5,000 records and retained for 90 days by default. Stable source IDs prevent duplicate imports. An adapter marked as cumulative is converted to incremental deltas using a persisted per-session cursor; Claude status-line records are treated as per-response snapshots and deduplicated without subtraction.
+
+The dashboard offers 7-day, 30-day, and all-time local views grouped by provider, model, project, day, week, and verified data source. Dates use the machine's local timezone. Empty and partially priced data remain explicit.
+
+### Pricing and overrides
+
+Built-in prices include source URL, effective date, version, currency, and per-million-token rates. The current built-in Codex rate comes from the official [OpenAI API pricing](https://developers.openai.com/api/docs/pricing). Unknown models and Claude models are deliberately shown as **Unavailable** rather than assigned a guessed price. OpenAI also documents that API usage reporting can be best-effort and is not a final bill; see [Agents API observability](https://developers.openai.com/api/docs/guides/agents-api/observability).
+
+Optional overrides can be added to `agentpilot.pricingOverrides`, keyed by `provider:model`:
+
+```json
+{
+  "claude:your-exact-model-id": {
+    "input": 3,
+    "cachedInput": 0.3,
+    "cacheCreationInput": 3.75,
+    "output": 15,
+    "unit": 1000000,
+    "currency": "USD",
+    "source": "your documented source",
+    "effectiveDate": "2026-10-15"
+  }
+}
+```
+
+These are API-equivalent estimates, not subscription spend. Cache-creation records require an explicit cache-creation rate; otherwise the cost remains unavailable.
+
+Official Claude references: [status-line input](https://code.claude.com/docs/en/statusline), [cost tracking](https://code.claude.com/docs/en/costs), and [hooks](https://code.claude.com/docs/en/hooks).
+
 ## Tests
 
 ```powershell
 npm test
 ```
 
-The suite covers normalization, v0.1 compatibility, malformed records, local storage, dashboard aggregation, Codex payload privacy, Telegram formatting and parsing, persistent deduplication, restart recovery, worker concurrency, 401/403/429/5xx handling, timeout uncertainty, backoff, disabled and missing configuration, SessionEnd suppression, privacy, and manual retries.
+The suite covers event and usage normalization, malformed records, bounded atomic storage, persistent deduplication, cumulative-to-incremental conversion, dashboard grouping/date windows, pricing and overrides, Codex payload privacy, Telegram reliability, and Windows notification diagnostics.
 
 ## Manual reliability validation
 
@@ -104,6 +154,7 @@ These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks rem
 - **Missing `@openai/codex-win32-x64`:** reinstall the official Codex CLI package, then confirm `codex.cmd --version` works before testing a real turn.
 - **No event in the dashboard:** run the manual smoke test, inspect `%USERPROFILE%\.agentpilot\events.jsonl`, then use **Developer: Toggle Developer Tools** for AgentPilot errors.
 - **No Windows toast:** keep VS Code notifications enabled; Windows toast APIs or notification policy may be unavailable. Agent tracking continues regardless.
+- **Test Windows notification:** run **AgentPilot: Test Windows Notification**, then inspect **View → Output → AgentPilot**. `sent` means the toast API accepted it; `balloon_fallback` means Windows rejected the helper's toast identity and AgentPilot used the notification-area fallback. If neither is visible, turn off Do Not Disturb/Focus Assist and check **Settings → System → Notifications**, including Visual Studio Code and Windows PowerShell notification permissions.
 - **Malformed JSONL line:** it is ignored safely; later valid lines still load.
 - **Telegram says disconnected:** configure both secrets, enable Telegram, and send a test. “Connected” means enabled and configured; the delivery history reports each queued result.
 - **Telegram test fails:** make sure the bot has received `/start`, the chat ID is correct, and local firewall/proxy policy allows `https://api.telegram.org`.
@@ -113,4 +164,4 @@ These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks rem
 
 ## Known limitations
 
-Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained queue history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Token analytics, cost comparison, and model recommendations remain future work.
+Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Codex lifecycle hooks and the tested Codex VS Code extension do not expose verified token usage. Cost estimates are not invoices, subscription costs, or model recommendations.
