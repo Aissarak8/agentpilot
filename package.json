@@ -2,12 +2,12 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity"],
+  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity", "onCommand:agentpilot.importUsage"],
   "contributes": {
     "commands": [
       { "command": "agentpilot.openDashboard", "title": "AgentPilot: Open Dashboard" },
@@ -16,7 +16,8 @@
       { "command": "agentpilot.configureTelegramToken", "title": "AgentPilot: Configure Telegram Bot Token" },
       { "command": "agentpilot.configureTelegramChatId", "title": "AgentPilot: Configure Telegram Chat ID" },
       { "command": "agentpilot.testTelegram", "title": "AgentPilot: Test Telegram Notification" },
-      { "command": "agentpilot.diagnoseTelegramConnectivity", "title": "AgentPilot: Diagnose Telegram Connectivity" }
+      { "command": "agentpilot.diagnoseTelegramConnectivity", "title": "AgentPilot: Diagnose Telegram Connectivity" },
+      { "command": "agentpilot.importUsage", "title": "AgentPilot: Import Structured Usage JSON" }
     ],
     "configuration": {
       "title": "AgentPilot",
@@ -26,7 +27,9 @@
         "agentpilot.notifyOnAttention": {"type":"boolean","default":true,"description":"Show notifications when a real agent event requires user interaction."},
         "agentpilot.notifyOnErrors": {"type":"boolean","default":true,"description":"Show notifications for real agent errors."}
         ,"agentpilot.enableTelegram": {"type":"boolean","default":false,"description":"Send selected AgentPilot events through Telegram. The token and chat ID are stored in VS Code SecretStorage."},
-        "agentpilot.telegramNotifyExceptionalSessionEnd": {"type":"boolean","default":true,"description":"Notify when a session ends without an observed completed turn. Normal SessionEnd events following Stop are suppressed."}
+        "agentpilot.telegramNotifyExceptionalSessionEnd": {"type":"boolean","default":true,"description":"Notify when a session ends without an observed completed turn. Normal SessionEnd events following Stop are suppressed."},
+        "agentpilot.usageRetentionDays": {"type":"integer","default":90,"minimum":1,"maximum":3650,"description":"Days of local token usage metadata to retain."},
+        "agentpilot.pricingOverrides": {"type":"object","default":{},"description":"Optional per-model API pricing overrides keyed by provider:model. Rates are per million tokens unless unit is specified."}
       }
     }
   },
