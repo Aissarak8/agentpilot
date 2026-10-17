@@ -98,7 +98,18 @@ AgentPilot records usage only when an official structured payload explicitly con
 
   Preserve other Claude settings when adding this entry. The collector reads stdin only, stores no conversation content, and repeated status-line invocations are deduplicated by session, prompt, model, and counts. Claude documents these fields as current-context/latest-response usage, not cumulative billing data.
 
-- **Codex:** the verified lifecycle hook payload does not provide token counts. Use **AgentPilot: Import Structured Usage JSON** only with JSON/JSONL exported by an official Codex surface that includes a `usage` object. AgentPilot accepts `input_tokens`, `cached_input_tokens`, `output_tokens`, optional `reasoning_tokens`, model, session/thread, and turn IDs. It does not scan Codex sessions, attach to the VS Code extension's private app server, or infer counts. The Codex VS Code extension path remains unverified.
+- **Codex CLI:** lifecycle hooks still do not contain token counts. For automatic collection, run non-interactive CLI tasks through AgentPilot's transparent structured-output wrapper. It adds the official `codex exec --json` flag, passes JSONL through unchanged, and stores only the `turn.completed.usage` fields:
+
+  ```powershell
+  $env:AGENTPILOT_CODEX_PATH = 'C:\path\to\codex.exe'
+  npm run codex -- --sandbox read-only "Reply exactly OK"
+  ```
+
+  `AGENTPILOT_CODEX_PATH` is only a process path, not a credential. On Windows the wrapper requires the native `codex.exe`; it rejects `.cmd` and `.bat` launchers so task text is never passed through a command shell. You can instead pass `--codex-path=C:\path\to\codex.exe` as the wrapper's first argument. The wrapper never writes prompts, responses, tool output, or raw JSONL. It records explicit input, cached input, cache-write input, output, and reasoning-output counts. Model attribution is stored only when `--model` is explicitly supplied; otherwise it remains `unknown`.
+
+- **Codex app-server:** the public generated protocol includes `thread/tokenUsage/updated`, containing `last` and cumulative `total` token breakdowns. The adapter accepts the documented `last` values for application-owned app-server sessions. AgentPilot does not connect to, proxy, or intercept an app-server process owned by the Codex VS Code extension. Official guidance positions app-server as a protocol driven by the application that starts it: [Codex app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server) and [Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform).
+
+- **Codex IDE and existing sessions:** no public VS Code extension API or official local usage export was found for observing existing IDE-hosted conversations. AgentPilot therefore does not scan Codex session files, inspect authentication data, attach to private sockets, or intercept network traffic. **AgentPilot: Import Structured Usage JSON** remains available for explicit, read-only imports from an official export containing a `usage` object.
 
 Usage is stored atomically in `%USERPROFILE%\.agentpilot\usage.json`, capped at 5,000 records and retained for 90 days by default. Stable source IDs prevent duplicate imports. An adapter marked as cumulative is converted to incremental deltas using a persisted per-session cursor; Claude status-line records are treated as per-response snapshots and deduplicated without subtraction.
 
@@ -128,6 +139,18 @@ Optional overrides can be added to `agentpilot.pricingOverrides`, keyed by `prov
 These are API-equivalent estimates, not subscription spend. Cache-creation records require an explicit cache-creation rate; otherwise the cost remains unavailable.
 
 Official Claude references: [status-line input](https://code.claude.com/docs/en/statusline), [cost tracking](https://code.claude.com/docs/en/costs), and [hooks](https://code.claude.com/docs/en/hooks).
+
+### Validate automatic Codex CLI usage
+
+1. Start the AgentPilot Extension Development Host and open the dashboard.
+2. Set `AGENTPILOT_CODEX_PATH` to a working official native `codex.exe` for that terminal only.
+3. Run a harmless task through `npm run codex -- --sandbox read-only "Reply exactly OK"`. Optionally add `--model your-supported-model-id` when you know the exact model accepted by your account.
+4. Confirm the CLI prints its normal JSONL and exits successfully.
+5. Inspect `%USERPROFILE%\.agentpilot\usage.json`. A real record must have `source: "codex-cli-json"` and the CLI thread ID. No prompt or response text should appear.
+6. Refresh the dashboard and compare its token cards to the `turn.completed.usage` values printed by that same run.
+7. Run the collector against the same captured completion in the automated test or import it twice; the stable thread-and-usage identifier must leave one record after restart.
+
+This validates only wrapper-owned Codex CLI turns. It does not validate the Codex VS Code Extension.
 
 ## Tests
 
@@ -164,4 +187,4 @@ These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks rem
 
 ## Known limitations
 
-Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Codex lifecycle hooks and the tested Codex VS Code extension do not expose verified token usage. Cost estimates are not invoices, subscription costs, or model recommendations.
+Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Codex lifecycle hooks and the tested Codex VS Code extension do not expose verified token usage. Automatic Codex usage collection requires starting CLI tasks through the AgentPilot wrapper; it cannot retroactively cover existing CLI or IDE sessions. Cost estimates are not invoices, subscription costs, or model recommendations.

@@ -33,5 +33,5 @@
       }
     }
   },
-  "scripts": { "test": "node --test tests/*.test.js" }
+  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js" }
 }
