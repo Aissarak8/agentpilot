@@ -4,7 +4,7 @@ const https = require('https');
 const zlib = require('zlib');
 const TELEGRAM_HOST = 'api.telegram.org';
 const DEFAULT_TIMEOUT_MS = 8000;
-const ALLOWED_KINDS = new Set(['completed', 'attention', 'session_ended']);
+const ALLOWED_KINDS = new Set(['completed', 'attention', 'failed', 'interrupted', 'session_ended']);
 
 class TelegramError extends Error {
   constructor(code, message, httpStatus = 0, diagnostic = {}) { super(message); this.name = 'TelegramError'; this.code = code; this.httpStatus = httpStatus; this.diagnostic = diagnostic; }

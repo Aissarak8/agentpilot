@@ -12,6 +12,8 @@ class CodexUsageStreamCollector {
     this.buffer = '';
     this.maxLineBytes = options.maxLineBytes || 2 * 1024 * 1024;
     this.adapter = options.adapter || new CodexUsageAdapter();
+    this.onPayload = options.onPayload;
+    this.onUsage = options.onUsage;
     this.results = [];
   }
   consume(chunk) {
@@ -23,11 +25,12 @@ class CodexUsageStreamCollector {
   finish() { if(this.buffer.trim()) this.consumeLine(this.buffer); this.buffer=''; return this.results; }
   consumeLine(line) {
     let payload; try { payload=JSON.parse(line); } catch { return null; }
+    this.onPayload?.(payload);
     if(payload.type==='thread.started' && typeof payload.thread_id==='string') this.sessionId=payload.thread_id;
     if(payload.type!=='turn.completed' || !payload.usage) return null;
     const record=this.adapter.normalize(payload,{source:'codex-cli-json',sessionId:this.sessionId,project:this.project,model:this.model,accounting:'incremental'});
     if(!record) return null;
-    const result=this.store.add(record); this.results.push(result); return result;
+    const result=this.store.add(record); this.results.push(result); this.onUsage?.(record,result); return result;
   }
 }
 

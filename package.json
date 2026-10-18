@@ -2,15 +2,17 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity", "onCommand:agentpilot.importUsage"],
+  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.runCodexTask", "onCommand:agentpilot.cancelCodexTask", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity", "onCommand:agentpilot.importUsage"],
   "contributes": {
     "commands": [
       { "command": "agentpilot.openDashboard", "title": "AgentPilot: Open Dashboard" },
+      { "command": "agentpilot.runCodexTask", "title": "AgentPilot: Run Codex Task" },
+      { "command": "agentpilot.cancelCodexTask", "title": "AgentPilot: Cancel Codex Task" },
       { "command": "agentpilot.testNotification", "title": "AgentPilot: Test Local Notification" },
       { "command": "agentpilot.testWindowsNotification", "title": "AgentPilot: Test Windows Notification" },
       { "command": "agentpilot.configureTelegramToken", "title": "AgentPilot: Configure Telegram Bot Token" },
@@ -26,10 +28,14 @@
         "agentpilot.enableWindowsNotifications": {"type":"boolean","default":false,"description":"Also show a native Windows toast when PowerShell and Windows toast APIs are available."},
         "agentpilot.notifyOnAttention": {"type":"boolean","default":true,"description":"Show notifications when a real agent event requires user interaction."},
         "agentpilot.notifyOnErrors": {"type":"boolean","default":true,"description":"Show notifications for real agent errors."}
+        ,"agentpilot.notifyOnCancellation": {"type":"boolean","default":true,"description":"Show notifications when an AgentPilot-owned task is cancelled."}
         ,"agentpilot.enableTelegram": {"type":"boolean","default":false,"description":"Send selected AgentPilot events through Telegram. The token and chat ID are stored in VS Code SecretStorage."},
         "agentpilot.telegramNotifyExceptionalSessionEnd": {"type":"boolean","default":true,"description":"Notify when a session ends without an observed completed turn. Normal SessionEnd events following Stop are suppressed."},
         "agentpilot.usageRetentionDays": {"type":"integer","default":90,"minimum":1,"maximum":3650,"description":"Days of local token usage metadata to retain."},
-        "agentpilot.pricingOverrides": {"type":"object","default":{},"description":"Optional per-model API pricing overrides keyed by provider:model. Rates are per million tokens unless unit is specified."}
+        "agentpilot.pricingOverrides": {"type":"object","default":{},"description":"Optional per-model API pricing overrides keyed by provider:model. Rates are per million tokens unless unit is specified."},
+        "agentpilot.codexCliPath": {"type":"string","default":"codex.exe","description":"Native Codex executable used by AgentPilot-owned tasks. On Windows use codex.exe, not a .cmd/.bat launcher."},
+        "agentpilot.codexTaskModel": {"type":"string","default":"","description":"Optional exact model ID for AgentPilot-owned tasks. Empty uses the Codex default and records model as unknown when JSON output omits it."},
+        "agentpilot.codexTaskTimeoutMinutes": {"type":"integer","default":30,"minimum":1,"maximum":240,"description":"Maximum duration for an AgentPilot-owned Codex task."}
       }
     }
   },

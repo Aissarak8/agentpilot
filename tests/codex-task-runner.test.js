@@ -1,0 +1,30 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const { EventEmitter }=require('events');
+const fs=require('fs');
+const os=require('os');
+const path=require('path');
+const test=require('node:test');
+const { CodexTaskRunner,TaskStore }=require('../codex-task-runner');
+const { UsageStore }=require('../usage');
+const { DeliveryQueue }=require('../delivery-queue');
+
+function setup(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'agentpilot-runner-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));return {dir,tasks:new TaskStore(path.join(dir,'tasks.json')),usage:new UsageStore(path.join(dir,'usage.json'),{retentionDays:36500})};}
+function fakeChild(){const child=new EventEmitter();child.pid=1234;child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.stdin={value:null,end(value){this.value=value;}};child.killed=false;child.kill=()=>{child.killed=true;};return child;}
+
+test('launches without a shell, uses workspace cwd, and does not persist the prompt',t=>{const env=setup(t),child=fakeChild();let launch;const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:(exe,args,options)=>(launch={exe,args,options},child),timeoutMs:60000});runner.start({executable:'C:/codex.exe',cwd:env.dir,prompt:'PRIVATE TASK',model:'gpt-test'});assert.deepEqual(launch.args,['exec','--json','--model','gpt-test','-']);assert.equal(launch.options.cwd,env.dir);assert.equal(launch.options.shell,false);assert.equal(child.stdin.value,'PRIVATE TASK');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE TASK/);runner.cancel();});
+
+test('captures real completion lifecycle and token usage',t=>{const env=setup(t),child=fakeChild(),events=[];const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>child,timeoutMs:60000});runner.on('lifecycle',event=>events.push(event));const task=runner.start({executable:'codex',cwd:env.dir,prompt:'harmless'});child.stdout.emit('data','{"type":"thread.started","thread_id":"thread-1"}\n{"type":"turn.completed","usage":{"input_tokens":10,"cached_input_tokens":4,"output_tokens":2,"reasoning_output_tokens":1}}\n');child.emit('exit',0,null);assert.equal(env.tasks.items[0].status,'completed');assert.equal(env.tasks.items[0].threadId,'thread-1');assert.ok(env.tasks.items[0].usageRecordId);assert.deepEqual(events.map(e=>e.kind),['session_started','completed']);assert.equal(events[1].id,`${task.id}-completed`);assert.equal(env.usage.records[0].totalTokens,12);});
+
+test('cancels and cleans up the owned process once',t=>{const env=setup(t),child=fakeChild();let terminated=0;const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>child,terminate:()=>terminated++,timeoutMs:60000});const events=[];runner.on('lifecycle',event=>events.push(event));runner.start({executable:'codex',cwd:env.dir,prompt:'task'});assert.equal(runner.cancel(),true);assert.equal(terminated,1);child.emit('exit',null,'SIGTERM');assert.equal(env.tasks.items[0].status,'cancelled');assert.equal(events.at(-1).kind,'interrupted');assert.equal(runner.cancel(),false);});
+
+test('classifies failed turns and unexpected exits',t=>{const env=setup(t),first=fakeChild();const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>first,timeoutMs:60000});runner.start({executable:'codex',cwd:env.dir,prompt:'task'});first.stdout.emit('data','{"type":"turn.failed","error":{"message":"PRIVATE"}}\n');first.emit('exit',1,null);assert.equal(env.tasks.items[0].errorCategory,'codex_turn_failed');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE/);});
+
+test('process start failure is persisted and dispatched without leaking the prompt',t=>{const env=setup(t),events=[];const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>{throw Object.assign(new Error('PRIVATE TASK'),{code:'ENOENT'});}});runner.on('lifecycle',event=>events.push(event));assert.throws(()=>runner.start({executable:'missing',cwd:env.dir,prompt:'PRIVATE TASK'}));assert.equal(env.tasks.items[0].errorCategory,'process_start');assert.equal(events[0].kind,'failed');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE TASK/);});
+
+test('timeout terminates the process and marks failure',async t=>{const env=setup(t),child=fakeChild();let terminated=0;const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>child,terminate:()=>terminated++,timeoutMs:5});runner.start({executable:'codex',cwd:env.dir,prompt:'task'});await new Promise(resolve=>setTimeout(resolve,20));assert.equal(terminated,1);assert.equal(env.tasks.items[0].status,'failed');assert.equal(env.tasks.items[0].errorCategory,'timeout');});
+
+test('restart recovery marks orphaned running metadata interrupted without relaunch',t=>{const env=setup(t);env.tasks.start({id:'old',project:'repo',startedAt:new Date(Date.now()-1000).toISOString()});const recovered=new TaskStore(path.join(env.dir,'tasks.json'));assert.equal(recovered.items[0].status,'interrupted');assert.equal(recovered.items[0].errorCategory,'extension_restart');});
+
+test('terminal runner events enter the existing Telegram delivery pipeline once',t=>{const env=setup(t),queue=new DeliveryQueue(path.join(env.dir,'queue.json'));const event={id:'runner-complete',time:new Date().toISOString(),agent:'codex',kind:'completed',project:'repo',source:'agentpilot_runner',test:false};assert.equal(queue.enqueue(event).status,'queued');assert.equal(queue.enqueue(event).status,'duplicate');assert.equal(queue.items.length,1);});

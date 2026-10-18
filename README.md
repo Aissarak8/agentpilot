@@ -1,6 +1,6 @@
-# AgentPilot v0.4
+# AgentPilot v0.5
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.4 adds local usage and API-cost analytics while preserving reliable Telegram and Windows notifications. It never sends source code, prompts, assistant messages, transcripts, tokens, or credentials.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.5 adds an AgentPilot-owned Codex task runner while preserving usage analytics and reliable Telegram and Windows notifications. It never stores or sends task prompts, source code, assistant messages, transcripts, authentication tokens, or credentials.
 
 ## Install and run on Windows 11
 
@@ -80,6 +80,28 @@ Delivery metadata survives Extension Host restarts and records pending, sending,
 The queue is capped at 500 records and written atomically. Only one in-process worker may claim a delivery, with at most ten attempts per minute. Disabling Telegram prevents new attempts and prevents newly observed events from being queued. Enabling it later does not backfill historical events; use an explicit test notification instead.
 
 Telegram delivery is verified for events written by the Codex CLI hook integration. Codex VS Code Extension completion hooks remain unverified, so Telegram delivery for IDE-hosted Codex turns is not claimed.
+
+## AgentPilot-owned Codex task runner
+
+Run **AgentPilot: Run Codex Task** from the Command Palette or dashboard. AgentPilot asks for a task, shows a modal confirmation, and starts an official `codex exec --json` child process in the first active workspace folder. The task text is sent over the child process's stdin and is never written to AgentPilot storage or logs.
+
+Configure **AgentPilot: Codex CLI Path** with a working native Codex executable. On Windows this must be `codex.exe`, not a `.cmd` or `.bat` launcher. AgentPilot launches it directly with `shell: false`, inherits the existing supported Codex authentication environment, and does not add sandbox-bypass or automatic-approval flags. An optional exact model can be configured with **AgentPilot: Codex Task Model**; empty uses the normal Codex default.
+
+The runner records only task ID, provider, project, model when explicitly configured, timestamps, status, duration, thread ID, normalized failure category, and usage-record ID. Metadata is stored atomically in `%USERPROFILE%\.agentpilot\codex-tasks.json` and capped at 100 tasks. Running metadata found after an Extension Host restart is marked interrupted; tasks are never silently relaunched.
+
+Task completion, failure, cancellation, and timeout generate normal AgentPilot lifecycle events. These use the existing deduplicated VS Code, Windows, and Telegram notification pipeline. Use **AgentPilot: Cancel Codex Task** to terminate the owned process tree. The default timeout is 30 minutes and is configurable.
+
+Important boundary: this command creates a separate AgentPilot-owned CLI task. It does not observe or control conversations in the official Codex VS Code Extension. Official OpenAI documentation recommends `codex exec` for bounded workflows and app-server for applications that own persistent conversations and approval handling: [Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform) and [Codex app-server](https://developers.openai.com/siwc/token-sharing-open-source/codex-app-server). No supported observer API is documented for attaching to another extension's existing IDE conversation, so AgentPilot does not attach to private app-server instances, scrape UI, read private session files, or intercept authentication traffic.
+
+### Manual runner validation
+
+1. Start the Extension Development Host and set **AgentPilot: Codex CLI Path** to a working official native `codex.exe`.
+2. Keep the dashboard open and optionally enable Windows and Telegram notifications.
+3. Run **AgentPilot: Run Codex Task**, enter `Reply exactly OK. Do not use tools.`, review the workspace confirmation, and select **Run**.
+4. Confirm the dashboard changes from running to completed and shows duration.
+5. Confirm `%USERPROFILE%\.agentpilot\events.jsonl` contains `agentpilot_runner` start and completion events, `%USERPROFILE%\.agentpilot\usage.json` contains the matching explicit CLI usage, and `%USERPROFILE%\.agentpilot\codex-tasks.json` contains no task text.
+6. Confirm the enabled notification destinations receive one completion notification. Telegram receipt and native Windows banner visibility require user confirmation in those destinations.
+7. Start a second harmless task and run **AgentPilot: Cancel Codex Task** to verify interrupted status and child cleanup.
 
 ## Token usage and cost analytics
 
