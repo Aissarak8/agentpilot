@@ -6,7 +6,7 @@ const fs=require('fs');
 const os=require('os');
 const path=require('path');
 const test=require('node:test');
-const { CodexTaskRunner,TaskStore }=require('../codex-task-runner');
+const { CodexTaskRunner,TaskStore,classifyProcessError,classifyStderr,resolveExecutable }=require('../codex-task-runner');
 const { UsageStore }=require('../usage');
 const { DeliveryQueue }=require('../delivery-queue');
 
@@ -21,7 +21,11 @@ test('cancels and cleans up the owned process once',t=>{const env=setup(t),child
 
 test('classifies failed turns and unexpected exits',t=>{const env=setup(t),first=fakeChild();const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>first,timeoutMs:60000});runner.start({executable:'codex',cwd:env.dir,prompt:'task'});first.stdout.emit('data','{"type":"turn.failed","error":{"message":"PRIVATE"}}\n');first.emit('exit',1,null);assert.equal(env.tasks.items[0].errorCategory,'codex_turn_failed');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE/);});
 
-test('process start failure is persisted and dispatched without leaking the prompt',t=>{const env=setup(t),events=[];const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>{throw Object.assign(new Error('PRIVATE TASK'),{code:'ENOENT'});}});runner.on('lifecycle',event=>events.push(event));assert.throws(()=>runner.start({executable:'missing',cwd:env.dir,prompt:'PRIVATE TASK'}));assert.equal(env.tasks.items[0].errorCategory,'process_start');assert.equal(events[0].kind,'failed');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE TASK/);});
+test('process start failure is classified and dispatched without leaking the prompt',t=>{const env=setup(t),events=[];const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>{throw Object.assign(new Error('PRIVATE TASK'),{code:'ENOENT'});}});runner.on('lifecycle',event=>events.push(event));assert.throws(()=>runner.start({executable:'missing',cwd:env.dir,prompt:'PRIVATE TASK'}));assert.equal(env.tasks.items[0].errorCategory,'executable_not_found');assert.equal(events[0].kind,'failed');assert.equal(events[0].errorCategory,'executable_not_found');assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8'),/PRIVATE TASK/);});
+
+test('resolves only an existing native executable and sanitizes spawn categories',()=>{const env={PATH:['C:/one','C:/two'].join(path.delimiter)};assert.equal(resolveExecutable('codex.exe',{env,platform:'win32',exists:value=>value===path.join('C:/two','codex.exe')}),path.join('C:/two','codex.exe'));assert.equal(resolveExecutable('codex.cmd',{env,platform:'win32',exists:()=>true}),null);assert.equal(resolveExecutable('missing.exe',{env,platform:'win32',exists:()=>false}),null);assert.equal(classifyProcessError({code:'EACCES'}),'executable_permission');assert.equal(classifyProcessError({code:'SECRET_INTERNAL'}),'process_start');});
+
+test('classifies trusted-workspace failures without persisting stderr',t=>{const env=setup(t),child=fakeChild(),events=[];const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>child,timeoutMs:60000});runner.on('lifecycle',event=>events.push(event));runner.start({executable:'codex',cwd:env.dir,prompt:'PRIVATE TASK'});child.stderr.emit('data','Not inside a trusted directory and --skip-git-repo-check was not specified.');child.emit('exit',1,null);assert.equal(env.tasks.items[0].errorCategory,'workspace_not_trusted');assert.equal(events.at(-1).errorCategory,'workspace_not_trusted');const stored=fs.readFileSync(path.join(env.dir,'tasks.json'),'utf8');assert.doesNotMatch(stored,/trusted directory|PRIVATE TASK|skip-git/);assert.equal(classifyStderr('401 unrelated numeric text'),null);});
 
 test('timeout terminates the process and marks failure',async t=>{const env=setup(t),child=fakeChild();let terminated=0;const runner=new CodexTaskRunner({taskStore:env.tasks,usageStore:env.usage,spawn:()=>child,terminate:()=>terminated++,timeoutMs:5});runner.start({executable:'codex',cwd:env.dir,prompt:'task'});await new Promise(resolve=>setTimeout(resolve,20));assert.equal(terminated,1);assert.equal(env.tasks.items[0].status,'failed');assert.equal(env.tasks.items[0].errorCategory,'timeout');});
 

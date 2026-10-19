@@ -103,6 +103,8 @@ Important boundary: this command creates a separate AgentPilot-owned CLI task. I
 6. Confirm the enabled notification destinations receive one completion notification. Telegram receipt and native Windows banner visibility require user confirmation in those destinations.
 7. Start a second harmless task and run **AgentPilot: Cancel Codex Task** to verify interrupted status and child cleanup.
 
+If a task reports `workspace_not_trusted`, Codex rejected the folder before creating a thread because it is not a trusted Git workspace. Open a trusted Git repository or initialize and review version control yourself, then retry. AgentPilot intentionally does not pass `--skip-git-repo-check`. If it reports `executable_not_found`, set **AgentPilot: Codex CLI Path** to the absolute path of a supported native `codex.exe`; shell launchers such as `.cmd` files are rejected.
+
 ## Token usage and cost analytics
 
 AgentPilot records usage only when an official structured payload explicitly contains token counts. Lifecycle hook activity is never converted into guessed usage.
