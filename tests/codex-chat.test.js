@@ -1,0 +1,27 @@
+'use strict';
+
+const assert=require('node:assert/strict');
+const EventEmitter=require('events');
+const fs=require('fs');
+const os=require('os');
+const path=require('path');
+const test=require('node:test');
+const { ChatSessionStore }=require('../chat-store');
+const { CodexChatController }=require('../codex-chat');
+const { UsageStore }=require('../usage');
+const { DeliveryQueue }=require('../delivery-queue');
+
+class FakeClient extends EventEmitter {constructor(){super();this.ready=false;this.turn=0;this.resumed=[];}async start(){this.ready=true;return this;}async listModels(){return[{id:'model-a',displayName:'Model A'}];}async startThread(){return{id:'thr-1'};}async resumeThread(id){this.resumed.push(id);return{id};}async startTurn(){return{id:`turn-${++this.turn}`};}async interrupt(){return true;}respondApproval(id,decision){this.approval={id,decision};}stop(){this.stopped=true;}}
+function setup(t){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'agentpilot-chat-'));t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));const store=new ChatSessionStore(path.join(dir,'sessions.json')),usage=new UsageStore(path.join(dir,'usage.json'),{retentionDays:36500}),client=new FakeClient(),controller=new CodexChatController({store,usageStore:usage,executable:'codex.exe',cwd:dir,clientFactory:()=>client});return{dir,store,usage,client,controller};}
+
+test('creates metadata-only sessions and keeps conversation text in memory',async t=>{const env=setup(t);const session=await env.controller.newSession('model-a');await env.controller.send('PRIVATE PROMPT',{model:'model-a'});assert.equal(env.store.get(session.id).threadId,'thr-1');assert.match(env.controller.state().messages[0].text,/PRIVATE PROMPT/);assert.doesNotMatch(fs.readFileSync(path.join(env.dir,'sessions.json'),'utf8'),/PRIVATE PROMPT/);});
+
+test('streams a response, completes, notifies once, and supports a follow-up',async t=>{const env=setup(t),events=[];await env.controller.newSession('model-a');env.controller.on('lifecycle',event=>events.push(event));await env.controller.send('first');env.client.emit('turn',{phase:'started',threadId:'thr-1',turn:{id:'turn-1'}});env.client.emit('delta',{threadId:'thr-1',turnId:'turn-1',delta:'one'});env.client.emit('turn',{phase:'completed',threadId:'thr-1',turn:{id:'turn-1',status:'completed'}});assert.equal(env.controller.state().messages.at(-1).text,'one');assert.equal(events.filter(event=>event.kind==='completed').length,1);await env.controller.send('follow-up');assert.equal(env.client.turn,2);assert.equal(env.controller.current().threadId,'thr-1');});
+
+test('switches and resumes sessions without restoring private message content',async t=>{const env=setup(t),first=await env.controller.newSession();await env.controller.send('secret');const second=await env.controller.newSession();await env.controller.selectSession(first.id);assert.equal(env.controller.current().id,first.id);const restarted=new ChatSessionStore(path.join(env.dir,'sessions.json'));assert.equal(restarted.get(first.id).threadId,'thr-1');assert.equal(JSON.stringify(restarted.items).includes('secret'),false);assert.equal(second.title,'Conversation 2');});
+
+test('handles approval, cancellation, failure, and restart recovery',async t=>{const env=setup(t),events=[];const session=await env.controller.newSession();env.controller.on('lifecycle',event=>events.push(event));await env.controller.send('task');env.client.emit('approval',{requestId:7,method:'item/fileChange/requestApproval',params:{threadId:'thr-1',turnId:'turn-1'}});assert.equal(env.store.get(session.id).status,'waiting');env.controller.respondApproval(7,'decline');assert.deepEqual(env.client.approval,{id:7,decision:'decline'});assert.equal(await env.controller.stop(),true);env.client.emit('turn',{phase:'completed',threadId:'thr-1',turn:{id:'turn-1',status:'interrupted'}});assert.equal(env.store.get(session.id).status,'interrupted');assert.ok(events.some(event=>event.kind==='attention'));assert.ok(events.some(event=>event.kind==='interrupted'));env.store.update(session.id,{status:'running'});const restarted=new ChatSessionStore(path.join(env.dir,'sessions.json'));assert.equal(restarted.get(session.id).status,'interrupted');});
+
+test('reports missing executable without starting and disposes owned process',async t=>{const env=setup(t);env.controller.executable=null;await assert.rejects(env.controller.ensureClient(),error=>error.code==='executable_not_found');env.controller.executable='codex.exe';await env.controller.ensureClient();env.controller.dispose();assert.equal(env.client.stopped,true);});
+
+test('app-server completion events reuse persistent notification deduplication',t=>{const env=setup(t),queue=new DeliveryQueue(path.join(env.dir,'deliveries.json')),session=env.store.create({project:'repo'}),event=env.controller.lifecycle({...session,threadId:'thr-1'},'completed','turn-1');assert.equal(queue.enqueue(event).status,'queued');assert.equal(queue.enqueue(event).status,'duplicate');assert.equal(queue.items[0].sourceEventId,event.id);});

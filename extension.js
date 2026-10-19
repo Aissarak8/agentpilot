@@ -10,10 +10,13 @@ const { ALLOWED_KINDS, describeTelegramError, normalizeToken, safeTelegramDiagno
 const { showWindowsToast } = require('./windows-notifications');
 const { ClaudeUsageAdapter, CodexUsageAdapter, CostEstimator, UsageStore, usageAnalytics } = require('./usage');
 const { CodexTaskRunner, TaskStore, resolveExecutable } = require('./codex-task-runner');
+const { ChatSessionStore } = require('./chat-store');
+const { CodexChatController } = require('./codex-chat');
+const { ChatViewProvider } = require('./chat-view');
 
 const TELEGRAM_TOKEN_KEY = 'agentpilot.telegramBotToken';
 const TELEGRAM_CHAT_KEY = 'agentpilot.telegramChatId';
-let panel, watcher, poller, workerTimer, activeTaskRunner, knownIds = new Set(), refreshRunning = false, analyticsDays = 30;
+let panel, watcher, poller, workerTimer, activeTaskRunner, activeChatController, knownIds = new Set(), refreshRunning = false, analyticsDays = 30;
 
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c])); }
 function shouldNotify(event, config) { if (event.test) return false; if (event.kind === 'completed') return config.get('enableNotifications', true); if (event.kind === 'attention') return config.get('notifyOnAttention', true); if (event.kind === 'failed') return config.get('notifyOnErrors', true); if(event.kind==='interrupted')return config.get('notifyOnCancellation',true); return false; }
@@ -48,12 +51,13 @@ function render(events, telegram, analytics = usageAnalytics([], new CostEstimat
 }
 
 function activate(context) {
-  const base = path.join(os.homedir(), '.agentpilot'), file = path.join(base, 'events.jsonl'), queueFile = path.join(base, 'telegram-deliveries.json'), usageFile = path.join(base, 'usage.json'), taskFile=path.join(base,'codex-tasks.json');
+  const base = path.join(os.homedir(), '.agentpilot'), file = path.join(base, 'events.jsonl'), queueFile = path.join(base, 'telegram-deliveries.json'), usageFile = path.join(base, 'usage.json'), taskFile=path.join(base,'codex-tasks.json'), chatFile=path.join(base,'codex-chat-sessions.json');
   fs.mkdirSync(base, { recursive:true }); if (!fs.existsSync(file)) fs.writeFileSync(file, '');
   knownIds = new Set(readEvents(file).map(event => event.id));
   const deliveryQueue = new DeliveryQueue(queueFile);
   const usageStore = new UsageStore(usageFile, { retentionDays:vscode.workspace.getConfiguration('agentpilot').get('usageRetentionDays', 90) });
   const taskStore = new TaskStore(taskFile);
+  const chatStore = new ChatSessionStore(chatFile);
   const output = vscode.window.createOutputChannel('AgentPilot'); context.subscriptions.push(output);
   const config = () => vscode.workspace.getConfiguration('agentpilot');
   const telegramConfig = async () => ({ enabled:config().get('enableTelegram', false), token:await context.secrets.get(TELEGRAM_TOKEN_KEY), chatId:await context.secrets.get(TELEGRAM_CHAT_KEY) });
@@ -68,6 +72,13 @@ function activate(context) {
   const testTelegram = async () => { const current=await telegramConfig(); if(!current.enabled){vscode.window.showWarningMessage('AgentPilot: Enable Telegram before sending a test.');return;} const queued=deliveryQueue.enqueue({id:`telegram-test-${Date.now()}`,time:new Date().toISOString(),agent:'test',kind:'completed',project:path.basename(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath||'demo'),test:true}); const result=queued.status==='queued'?await runWorker():queued; vscode.window.showInformationMessage(`AgentPilot: Telegram test ${result.status}.`); };
   const diagnoseTelegram = async () => { try { await validateBotToken('12345:abcdefghijklmnopqrstuvwxyz'); vscode.window.showWarningMessage('AgentPilot: Unexpected Telegram diagnostic response.'); } catch (error) { logTelegramDiagnostic(error); const diagnostic=safeTelegramDiagnostic(error); if(diagnostic.category==='invalid_token'&&diagnostic.httpStatus===401&&diagnostic.contentType==='application/json') vscode.window.showInformationMessage('AgentPilot: Telegram connectivity is healthy (Bot API returned expected JSON/HTTP 401 for a synthetic token).'); else { output.show(true); vscode.window.showWarningMessage(`AgentPilot: Telegram connectivity diagnostic found ${diagnostic.category}. See the AgentPilot output channel.`); } } };
   const testWindowsNotification = async () => { const result=await nativeToast(context,'AgentPilot native Windows notification test',output); const message=`AgentPilot: ${windowsResultMessage(result)}`; if(result.ok)vscode.window.showInformationMessage(message);else{output.show(true);vscode.window.showErrorMessage(message);} };
+  const workspaceFolder=vscode.workspace.workspaceFolders?.[0],configuredCodex=config().get('codexCliPath',process.platform==='win32'?'codex.exe':'codex');
+  activeChatController=new CodexChatController({store:chatStore,usageStore,executable:resolveExecutable(configuredCodex),cwd:workspaceFolder?.uri.fsPath||context.extensionPath});
+  activeChatController.on('lifecycle',event=>{const result=appendEvent(file,event);output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({kind:event.kind,project:event.project,stored:result.stored})}`);void refresh();});
+  activeChatController.on('diagnostic',diagnostic=>output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category:diagnostic.category||'app_server'})}`));
+  activeChatController.on('approval',async request=>{const params=request.params||{},isCommand=request.method==='item/commandExecution/requestApproval',isPermission=request.method==='item/permissions/requestApproval',detail=isCommand?(Array.isArray(params.command)?params.command.join(' '):String(params.command||params.reason||'Command execution')):isPermission?`${String(params.reason||'Additional permissions requested')} ${JSON.stringify(params.permissions||{})}`:String(params.reason||'Apply proposed file changes'),preview=detail.slice(0,1000);const choice=await vscode.window.showWarningMessage(`Codex requests approval: ${preview}`,{modal:true,detail:'Approve only if you understand this action. Permission grants are limited to this turn. AgentPilot never approves automatically.'},'Approve once','Decline','Cancel turn');const decision=choice==='Approve once'?'accept':choice==='Cancel turn'?'cancel':'decline';try{activeChatController.respondApproval(request.requestId,decision);}catch{output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category:'approval_response'})}`);}});
+  const chatProvider=new ChatViewProvider({controller:activeChatController,vscode,extensionUri:context.extensionUri,output});
+  context.subscriptions.push(vscode.window.registerWebviewViewProvider('agentpilot.chat',chatProvider,{webviewOptions:{retainContextWhenHidden:true}}));
   activeTaskRunner=new CodexTaskRunner({taskStore,usageStore,timeoutMs:config().get('codexTaskTimeoutMinutes',30)*60000});
   {const configured=config().get('codexCliPath',process.platform==='win32'?'codex.exe':'codex');output.appendLine(`${new Date().toISOString()} Codex task ${JSON.stringify({category:'executable_resolution',resolved:Boolean(resolveExecutable(configured)),configuredAsPath:path.isAbsolute(configured)})}`);}
   activeTaskRunner.on('lifecycle',event=>{const result=appendEvent(file,event);output.appendLine(`${new Date().toISOString()} Codex task ${JSON.stringify({kind:event.kind,project:event.project,errorCategory:event.errorCategory||null,stored:result.stored})}`);void refresh();});
@@ -84,6 +95,7 @@ function activate(context) {
 
   watcher = fs.watch(base, (type, name) => { if (name === 'events.jsonl') void refresh(); else if(name==='usage.json') void updateDashboard(); }); poller = setInterval(()=>void refresh(), 2500); workerTimer=setInterval(()=>void runWorker(),5000);
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.openDashboard', async () => { panel = vscode.window.createWebviewPanel('agentpilot','AgentPilot Dashboard',vscode.ViewColumn.One,{ enableScripts:true }); panel.__agentpilotNonce = require('crypto').randomBytes(16).toString('hex'); panel.webview.onDidReceiveMessage(async message => { if (message.action === 'toggle') await config().update('enableTelegram', !config().get('enableTelegram', false), vscode.ConfigurationTarget.Global); else if (message.action === 'token') await configureToken(); else if (message.action === 'chat') await configureChat(); else if (message.action === 'test') await testTelegram(); else if(message.action==='importUsage') await importUsage(); else if(message.action==='runCodex') await runCodexTask(); else if(message.action==='cancelCodex') await cancelCodexTask(); else if(message.action==='range') analyticsDays=Math.max(0,Number(message.id)||0); else if(message.action==='retry'){const item=deliveryQueue.items.find(candidate=>candidate.sourceEventId===message.id);const warning=item?.status==='uncertain'?'Telegram may already have delivered this notification. Check the chat before retrying.':'Retry this failed notification?';const choice=await vscode.window.showWarningMessage(warning,{modal:true},'Retry');if(choice==='Retry'){deliveryQueue.manualRetry(message.id);void runWorker();}} await updateDashboard(); }, undefined, context.subscriptions); panel.onDidDispose(() => panel = undefined); await updateDashboard(); }));
+  context.subscriptions.push(vscode.commands.registerCommand('agentpilot.openChat',()=>vscode.commands.executeCommand('workbench.view.extension.agentpilot')));
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.testNotification', () => { appendEvent(file, { time:new Date().toISOString(), agent:'test', kind:'completed', project:path.basename(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || 'demo'), source:'test', test:true }); refresh(); vscode.window.showInformationMessage('AgentPilot test event recorded.'); }));
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.testWindowsNotification', testWindowsNotification));
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.configureTelegramToken', configureToken));
@@ -93,8 +105,8 @@ function activate(context) {
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.importUsage', importUsage));
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.runCodexTask',runCodexTask));
   context.subscriptions.push(vscode.commands.registerCommand('agentpilot.cancelCodexTask',cancelCodexTask));
-  context.subscriptions.push({ dispose() { activeTaskRunner?.dispose(); watcher?.close(); clearInterval(poller); clearInterval(workerTimer); } });
+  context.subscriptions.push({ dispose() { activeChatController?.dispose(); activeTaskRunner?.dispose(); watcher?.close(); clearInterval(poller); clearInterval(workerTimer); } });
 }
 
-function deactivate() { activeTaskRunner?.dispose(); watcher?.close(); clearInterval(poller); clearInterval(workerTimer); }
+function deactivate() { activeChatController?.dispose(); activeTaskRunner?.dispose(); watcher?.close(); clearInterval(poller); clearInterval(workerTimer); }
 module.exports = { activate, deactivate, escapeHtml, nativeToast, render, shouldNotify, taskMarkup, usageMarkup, windowsResultMessage };

@@ -2,15 +2,26 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
-  "activationEvents": ["onStartupFinished", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.runCodexTask", "onCommand:agentpilot.cancelCodexTask", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity", "onCommand:agentpilot.importUsage"],
+  "activationEvents": ["onStartupFinished", "onView:agentpilot.chat", "onCommand:agentpilot.openChat", "onCommand:agentpilot.openDashboard", "onCommand:agentpilot.runCodexTask", "onCommand:agentpilot.cancelCodexTask", "onCommand:agentpilot.testNotification", "onCommand:agentpilot.testWindowsNotification", "onCommand:agentpilot.configureTelegramToken", "onCommand:agentpilot.configureTelegramChatId", "onCommand:agentpilot.testTelegram", "onCommand:agentpilot.diagnoseTelegramConnectivity", "onCommand:agentpilot.importUsage"],
   "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        { "id": "agentpilot", "title": "AgentPilot", "icon": "media/agentpilot.svg" }
+      ]
+    },
+    "views": {
+      "agentpilot": [
+        { "id": "agentpilot.chat", "name": "Codex Chat", "type": "webview" }
+      ]
+    },
     "commands": [
       { "command": "agentpilot.openDashboard", "title": "AgentPilot: Open Dashboard" },
+      { "command": "agentpilot.openChat", "title": "AgentPilot: Open Codex Chat" },
       { "command": "agentpilot.runCodexTask", "title": "AgentPilot: Run Codex Task" },
       { "command": "agentpilot.cancelCodexTask", "title": "AgentPilot: Cancel Codex Task" },
       { "command": "agentpilot.testNotification", "title": "AgentPilot: Test Local Notification" },

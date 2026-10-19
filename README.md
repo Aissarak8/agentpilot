@@ -1,6 +1,6 @@
-# AgentPilot v0.5
+# AgentPilot v0.6
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.5 adds an AgentPilot-owned Codex task runner while preserving usage analytics and reliable Telegram and Windows notifications. It never stores or sends task prompts, source code, assistant messages, transcripts, authentication tokens, or credentials.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.6 adds an AgentPilot-owned interactive Codex app-server chat while preserving the v0.5 task runner, usage analytics, and reliable Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 ## Install and run on Windows 11
 
@@ -104,6 +104,38 @@ Important boundary: this command creates a separate AgentPilot-owned CLI task. I
 7. Start a second harmless task and run **AgentPilot: Cancel Codex Task** to verify interrupted status and child cleanup.
 
 If a task reports `workspace_not_trusted`, Codex rejected the folder before creating a thread because it is not a trusted Git workspace. Open a trusted Git repository or initialize and review version control yourself, then retry. AgentPilot intentionally does not pass `--skip-git-repo-check`. If it reports `executable_not_found`, set **AgentPilot: Codex CLI Path** to the absolute path of a supported native `codex.exe`; shell launchers such as `.cmd` files are rejected.
+
+## Interactive Codex chat
+
+Open the AgentPilot activity-bar icon or run **AgentPilot: Open Codex Chat**. The sidebar starts a separate AgentPilot-owned `codex app-server --listen stdio://` process and communicates using newline-delimited JSON-RPC. It never connects to the private app-server instance owned by the official Codex VS Code Extension.
+
+The MVP uses the stable documented protocol surface:
+
+- `initialize` followed by `initialized` for compatibility and client identity.
+- `model/list` for the model selector. The catalog is not treated as an entitlement guarantee.
+- `thread/start` and `thread/resume` for new and continuing conversations.
+- `turn/start`, `item/agentMessage/delta`, and `turn/completed` for multi-turn streaming.
+- `turn/interrupt` for Stop.
+- `thread/tokenUsage/updated` for explicit per-turn usage.
+- `item/commandExecution/requestApproval`, `item/fileChange/requestApproval`, and `item/permissions/requestApproval` for explicit VS Code confirmation. Permission grants are limited to the current turn. AgentPilot never silently approves and does not offer session-wide approval in this MVP.
+
+The active workspace must be trusted. AgentPilot passes no sandbox override, approval override, or workspace-trust bypass; the owned app-server inherits the supported Codex configuration and authentication used by the native CLI. Unsupported server-initiated requests fail closed with a JSON-RPC method error.
+
+Chat text is held only in Extension Host memory for the current run. `%USERPROFILE%\.agentpilot\codex-chat-sessions.json` stores bounded metadata only: AgentPilot session ID, Codex thread ID, generic title, project, selected model, lifecycle status, timestamps, last turn ID, and a sanitized error category. After restart, AgentPilot can resume the Codex thread, but the sidebar intentionally cannot reconstruct prior message text. Prompts and assistant output are not copied into AgentPilot storage.
+
+Turn completion, interruption, failure, and approval attention events use the existing deduplicated VS Code, Windows, and Telegram pipeline. Usage continues through the existing metadata-only `UsageStore` and dashboard analytics.
+
+Official protocol references: [Codex App Server](https://developers.openai.com/codex/app-server) and [Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform).
+
+### Manual chat validation
+
+1. Open a trusted Git workspace in the Extension Development Host and configure **AgentPilot: Codex CLI Path** with a supported native `codex.exe` if it is not already on the Extension Host PATH.
+2. Open the AgentPilot sidebar. Confirm the model selector populates, create a conversation, and send `Reply exactly FIRST. Do not use tools.`
+3. Wait for completed status and verify one completion notification in each enabled destination.
+4. In the same conversation send `Reply exactly SECOND. Do not use tools.` Confirm the same Codex thread ID is retained in `codex-chat-sessions.json` and usage increases without duplicate records.
+5. Start another harmless turn and select **Stop**. Confirm interrupted status.
+6. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Decline. Never approve an action you do not understand.
+7. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
 
 ## Token usage and cost analytics
 
@@ -211,4 +243,6 @@ These steps validate Codex CLI hooks only. IDE-hosted Codex completion hooks rem
 
 ## Known limitations
 
-Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Codex lifecycle hooks and the tested Codex VS Code extension do not expose verified token usage. Automatic Codex usage collection requires starting CLI tasks through the AgentPilot wrapper; it cannot retroactively cover existing CLI or IDE sessions. Cost estimates are not invoices, subscription costs, or model recommendations.
+Status is inferred only from observed lifecycle events and may be `unknown`; it is not live process monitoring. Event reads and Telegram delivery history are each capped at 500 records. Telegram delivery requires the VS Code extension host to be running. Persistent deduplication is bounded by retained history. Telegram does not provide a general client idempotency key for `sendMessage`, so uncertain requests require a human decision. Codex lifecycle hooks and the tested Codex VS Code extension do not expose verified token usage. Automatic Codex usage collection requires starting CLI tasks through AgentPilot; it cannot retroactively cover existing CLI or IDE sessions. Cost estimates are not invoices, subscription costs, or model recommendations.
+
+Interactive chat history text is memory-only, so selecting a persisted session after restart resumes its Codex context without reconstructing prior transcript text. The tested `codex-cli 0.154.0-alpha.6.2` generated protocol has no shutdown RPC; AgentPilot requests normal stdin EOF and retains a bounded process-tree termination fallback. Existing conversations in the official Codex VS Code Extension remain outside AgentPilot's supported integration boundary.
