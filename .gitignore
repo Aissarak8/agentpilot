@@ -3,6 +3,8 @@ debug.log
 *.log
 *.jsonl
 telegram-deliveries.json
+codex-tasks.json
+codex-chat-sessions.json
 .agentpilot/
 
 # Local credentials and environment files

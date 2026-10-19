@@ -38,23 +38,26 @@ function finalize(record, identity) {
 class CodexUsageAdapter {
   normalize(payload, context = {}) {
     if (!payload || typeof payload !== 'object') return null;
-    const usage = payload.usage || payload.turn?.usage || payload.response?.usage;
+    const notification = payload.method === 'thread/tokenUsage/updated' ? payload.params : payload;
+    const tokenUsage = notification?.tokenUsage;
+    const usage = payload.usage || payload.turn?.usage || payload.response?.usage || tokenUsage?.last || tokenUsage?.total;
     if (!usage || typeof usage !== 'object') return null;
     const inputDetails = usage.input_tokens_details || usage.inputTokensDetails || {};
     const outputDetails = usage.output_tokens_details || usage.outputTokensDetails || {};
     return finalize({
-      provider: 'codex', source: 'codex-structured-usage', confidence: 'verified',
+      provider: 'codex', source: context.source || (tokenUsage ? 'codex-app-server' : 'codex-structured-usage'), confidence: 'verified',
       timestamp: first(payload.timestamp, payload.created_at, context.timestamp),
       model: first(payload.model, payload.turn?.model, context.model),
       project: first(context.project, payload.project),
-      sessionId: first(payload.thread_id, payload.session_id, context.sessionId),
-      accounting: first(context.accounting, payload.accounting),
+      sessionId: first(notification?.threadId, payload.thread_id, payload.session_id, context.sessionId),
+      accounting: first(context.accounting, payload.accounting, tokenUsage?.last ? 'incremental' : undefined),
       inputTokens: first(usage.input_tokens, usage.inputTokens),
       outputTokens: first(usage.output_tokens, usage.outputTokens),
       cachedInputTokens: first(usage.cached_input_tokens, inputDetails.cached_tokens, inputDetails.cachedTokens),
-      reasoningTokens: first(usage.reasoning_tokens, outputDetails.reasoning_tokens, outputDetails.reasoningTokens),
+      cacheCreationInputTokens: first(usage.cache_write_input_tokens, usage.cacheWriteInputTokens),
+      reasoningTokens: first(usage.reasoning_output_tokens, usage.reasoningOutputTokens, usage.reasoning_tokens, outputDetails.reasoning_tokens, outputDetails.reasoningTokens),
       totalTokens: first(usage.total_tokens, usage.totalTokens)
-    }, first(payload.turn_id, payload.turn?.id, payload.id, context.identity));
+    }, first(notification?.turnId, payload.turn_id, payload.turn?.id, payload.id, context.identity));
   }
 }
 

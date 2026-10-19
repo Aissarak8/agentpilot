@@ -8,7 +8,7 @@ function normalizeEvent(input,defaults={}) {
   const agent=clean(input.agent||defaults.agent).toLowerCase(),kind=clean(input.kind||defaults.kind).toLowerCase();
   if(!AGENTS.has(agent)||!KINDS.has(kind))return null;
   const event={version:Number.isInteger(input.version)?input.version:1,id:clean(input.id),time:clean(input.time)||new Date().toISOString(),agent,kind,project:clean(input.project,'unknown',80),source:clean(input.source,agent==='test'?'test':'legacy',32),test:input.test===true||agent==='test'};
-  for(const key of ['sessionId','turnId','model','hook']){const value=clean(input[key]);if(value)event[key]=value;}
+  for(const key of ['sessionId','turnId','model','hook','errorCategory']){const value=clean(input[key]);if(value)event[key]=value;}
   if(!event.id)event.id=crypto.createHash('sha256').update([event.time,event.agent,event.kind,event.project].join('|')).digest('hex').slice(0,24);
   return event;
 }
