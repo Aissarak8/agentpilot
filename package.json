@@ -2,7 +2,7 @@
   "name": "agentpilot-starter",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "publisher": "agentpilot-local",
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },

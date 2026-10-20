@@ -1,6 +1,6 @@
-# AgentPilot v0.6
+# AgentPilot v0.6.1
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.6 adds an AgentPilot-owned interactive Codex app-server chat while preserving the v0.5 task runner, usage analytics, and reliable Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.6.1 improves the AgentPilot-owned interactive Codex chat UX, approval safety, and restart behavior while preserving the task runner, usage analytics, and independent Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 ## Install and run on Windows 11
 
@@ -123,6 +123,10 @@ The active workspace must be trusted. AgentPilot passes no sandbox override, app
 
 Chat text is held only in Extension Host memory for the current run. `%USERPROFILE%\.agentpilot\codex-chat-sessions.json` stores bounded metadata only: AgentPilot session ID, Codex thread ID, generic title, project, selected model, lifecycle status, timestamps, last turn ID, and a sanitized error category. After restart, AgentPilot can resume the Codex thread, but the sidebar intentionally cannot reconstruct prior message text. Prompts and assistant output are not copied into AgentPilot storage.
 
+The v0.6.1 sidebar renders a safe Markdown subset, shows creation and last-activity times, follows streaming output only while the reader remains near the bottom, and uses Enter to send with Shift+Enter for a newline. Conversations can be renamed or removed from AgentPilot. Deletion is confirmed and removes only AgentPilot's local metadata; it does not delete a Codex thread or project files. A running or approval-waiting conversation must be stopped before deletion.
+
+Approval dialogs identify command execution, file changes, or extra permissions and place **Deny** first. Closing the dialog is also a denial. Malformed approval requests are rejected without opening a dialog, and no approval is granted automatically. If the app-server exits or the Extension Host restarts during a running turn or approval wait, the session is marked failed or interrupted rather than completed and can reconnect on a later send.
+
 Turn completion, interruption, failure, and approval attention events use the existing deduplicated VS Code, Windows, and Telegram pipeline. Usage continues through the existing metadata-only `UsageStore` and dashboard analytics.
 
 Official protocol references: [Codex App Server](https://developers.openai.com/codex/app-server) and [Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform).
@@ -134,8 +138,9 @@ Official protocol references: [Codex App Server](https://developers.openai.com/c
 3. Wait for completed status and verify one completion notification in each enabled destination.
 4. In the same conversation send `Reply exactly SECOND. Do not use tools.` Confirm the same Codex thread ID is retained in `codex-chat-sessions.json` and usage increases without duplicate records.
 5. Start another harmless turn and select **Stop**. Confirm interrupted status.
-6. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Decline. Never approve an action you do not understand.
-7. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
+6. Confirm Enter sends, Shift+Enter inserts a newline, and scrolling upward during a streamed response is not overridden. Rename the conversation, then delete a disposable completed conversation and confirm the warning states that only local AgentPilot metadata is removed.
+7. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Deny. Dismissing the modal also denies. Never approve an action you do not understand.
+8. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
 
 ## Token usage and cost analytics
 

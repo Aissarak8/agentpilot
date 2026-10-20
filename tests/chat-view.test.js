@@ -2,8 +2,12 @@
 
 const assert=require('node:assert/strict');
 const test=require('node:test');
-const { renderChat }=require('../chat-view');
+const { approvalDecision,approvalPrompt }=require('../approval-ui');
+const { renderMarkdown }=require('../chat-markdown');
+const { publicState,renderChat }=require('../chat-view');
 
-test('renders responsive chat state with escaped content and controls',()=>{const html=renderChat({sessions:[{id:'s1',title:'Conversation 1',status:'running'}],current:{id:'s1',status:'running',project:'repo',model:'model-a'},messages:[{role:'assistant',text:'<script>PRIVATE</script>',streaming:true}],models:[{id:'model-a',displayName:'Model A'}],usage:{totalTokens:12,inputTokens:10,outputTokens:2,cachedInputTokens:4}},'nonce');assert.match(html,/Codex/);assert.match(html,/Stop/);assert.match(html,/Model A/);assert.match(html,/Tokens: 12/);assert.doesNotMatch(html,/<script>PRIVATE/);assert.match(html,/&lt;script&gt;PRIVATE/);});
+test('chat shell uses incremental state updates, VS Code variables, and requested controls',()=>{const html=renderChat('nonce');assert.match(html,/--vscode-sideBar-background/);assert.match(html,/data-action="rename"/);assert.match(html,/data-action="delete"/);assert.match(html,/Enter to send/);assert.match(html,/!event\.shiftKey/);assert.match(html,/stickToBottom/);assert.match(html,/post\('ready'\)/);assert.doesNotMatch(html,/PRIVATE/);});
 
-test('explains metadata-only history restoration',()=>{const html=renderChat({sessions:[],current:null,messages:[],models:[],usage:{}},'nonce');assert.match(html,/kept in memory only/);assert.match(html,/prior text is not restored/);});
+test('public chat state renders Markdown safely without leaking raw markup',()=>{const state=publicState({sessions:[],current:null,messages:[{role:'assistant',text:'**safe** <script>PRIVATE</script>\n```js\nconst n=1;\n```'}],models:[],usage:{}});assert.match(state.messages[0].html,/<strong>safe<\/strong>/);assert.match(state.messages[0].html,/&lt;script&gt;PRIVATE&lt;\/script&gt;/);assert.doesNotMatch(state.messages[0].html,/<script>PRIVATE/);assert.match(state.messages[0].html,/<pre><code data-language="js">/);assert.doesNotMatch(renderMarkdown('[bad](javascript:alert(1))'),/href=/);});
+
+test('approval dialog makes deny first and dismissal fails closed',()=>{const prompt=approvalPrompt({method:'item/commandExecution/requestApproval',params:{command:['npm','test']}});assert.equal(prompt.buttons[0],'Deny');assert.match(prompt.options.detail,/AgentPilot never auto-approves/);assert.equal(approvalDecision(undefined),'decline');assert.equal(approvalDecision('Deny'),'decline');assert.equal(approvalDecision('Approve once'),'accept');assert.equal(approvalDecision('Cancel turn'),'cancel');});

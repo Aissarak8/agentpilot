@@ -13,6 +13,7 @@ const { CodexTaskRunner, TaskStore, resolveExecutable } = require('./codex-task-
 const { ChatSessionStore } = require('./chat-store');
 const { CodexChatController } = require('./codex-chat');
 const { ChatViewProvider } = require('./chat-view');
+const { approvalDecision, approvalPrompt } = require('./approval-ui');
 
 const TELEGRAM_TOKEN_KEY = 'agentpilot.telegramBotToken';
 const TELEGRAM_CHAT_KEY = 'agentpilot.telegramChatId';
@@ -76,7 +77,7 @@ function activate(context) {
   activeChatController=new CodexChatController({store:chatStore,usageStore,executable:resolveExecutable(configuredCodex),cwd:workspaceFolder?.uri.fsPath||context.extensionPath});
   activeChatController.on('lifecycle',event=>{const result=appendEvent(file,event);output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({kind:event.kind,project:event.project,stored:result.stored})}`);void refresh();});
   activeChatController.on('diagnostic',diagnostic=>output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category:diagnostic.category||'app_server'})}`));
-  activeChatController.on('approval',async request=>{const params=request.params||{},isCommand=request.method==='item/commandExecution/requestApproval',isPermission=request.method==='item/permissions/requestApproval',detail=isCommand?(Array.isArray(params.command)?params.command.join(' '):String(params.command||params.reason||'Command execution')):isPermission?`${String(params.reason||'Additional permissions requested')} ${JSON.stringify(params.permissions||{})}`:String(params.reason||'Apply proposed file changes'),preview=detail.slice(0,1000);const choice=await vscode.window.showWarningMessage(`Codex requests approval: ${preview}`,{modal:true,detail:'Approve only if you understand this action. Permission grants are limited to this turn. AgentPilot never approves automatically.'},'Approve once','Decline','Cancel turn');const decision=choice==='Approve once'?'accept':choice==='Cancel turn'?'cancel':'decline';try{activeChatController.respondApproval(request.requestId,decision);}catch{output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category:'approval_response'})}`);}});
+  activeChatController.on('approval',async request=>{const prompt=approvalPrompt(request),choice=await vscode.window.showWarningMessage(prompt.message,prompt.options,...prompt.buttons);try{activeChatController.respondApproval(request.requestId,approvalDecision(choice));}catch{output.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category:'approval_response'})}`);}});
   const chatProvider=new ChatViewProvider({controller:activeChatController,vscode,extensionUri:context.extensionUri,output});
   context.subscriptions.push(vscode.window.registerWebviewViewProvider('agentpilot.chat',chatProvider,{webviewOptions:{retainContextWhenHidden:true}}));
   activeTaskRunner=new CodexTaskRunner({taskStore,usageStore,timeoutMs:config().get('codexTaskTimeoutMinutes',30)*60000});
