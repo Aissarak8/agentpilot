@@ -5,6 +5,7 @@ debug.log
 telegram-deliveries.json
 codex-tasks.json
 codex-chat-sessions.json
+advisor-feedback.json
 .agentpilot/
 
 # Local credentials and environment files
@@ -19,3 +20,4 @@ credentials.json
 __pycache__/
 *.py[cod]
 node_modules/
+*.vsix

@@ -1,6 +1,27 @@
-# AgentPilot v0.6
+# AgentPilot v0.8 Smart Model Advisor
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version 0.6 adds an AgentPilot-owned interactive Codex app-server chat while preserving the v0.5 task runner, usage analytics, and reliable Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.8.0` adds an explainable Smart Model Advisor while preserving the v0.7 AgentPilot-owned task runner, interactive Codex chat, usage analytics, session recovery, and independent Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+
+The temporary private-beta extension identifier is `agentpilot-local.agentpilot`; `agentpilot-local` is not a Marketplace publisher identity. This VSIX is intended for local installation and is not published to the Marketplace.
+
+## Install the private-beta VSIX
+
+1. In normal VS Code, open **Extensions** and choose **Views and More Actions → Install from VSIX…**.
+2. Select `agentpilot-0.7.0-beta.1.vsix` from the repository root and reload VS Code when prompted.
+3. Open a trusted test workspace, then run **AgentPilot: Open Codex Chat** or **AgentPilot: Open Dashboard** from the Command Palette.
+4. Configure **AgentPilot: Codex CLI Path** if the native `codex.exe` is not already on the Extension Host PATH.
+
+To roll back, uninstall AgentPilot from the Extensions view and reinstall an earlier VSIX if required. Uninstalling the extension does not remove local metadata under `%USERPROFILE%\.agentpilot`; delete that directory separately only after reviewing it and only if you intentionally want to remove the local history. Telegram credentials remain managed by VS Code SecretStorage.
+
+### Stabilization manual checks
+
+These checks require user observation and are not implied by automated tests:
+
+1. **Approval Deny:** in a disposable trusted workspace, ask AgentPilot Chat to run a harmless read-only command such as `git status`. Confirm the modal describes command execution, choose **Deny**, and verify no command result is produced. Repeat by closing the modal; dismissal must also deny.
+2. **Approval Allow:** repeat the same harmless read-only request, inspect the exact command, choose **Approve once**, and verify only that request runs. Never approve an unfamiliar command, file change, or permission request.
+3. **Telegram after completion:** configure the token and chat ID through AgentPilot commands, enable Telegram, complete one harmless AgentPilot-owned chat turn, and confirm one message arrives. Check delivery history for `sent`; if it is `uncertain`, inspect Telegram before manually retrying.
+4. **Resume after restart:** complete a turn, record the conversation title, restart VS Code, select that conversation, and send a follow-up. Confirm the same thread resumes while previous transcript text remains absent by design.
+5. **Windows notification:** enable Windows notifications and run **AgentPilot: Test Windows Notification**. Then complete one real turn and confirm a single native notification. Repeat with two VS Code windows to check that only one window dispatches each stable event.
 
 ## Install and run on Windows 11
 
@@ -15,7 +36,7 @@ code .
 
 Press **F5** to launch an Extension Development Host. In that window run **AgentPilot: Open Dashboard**. **AgentPilot: Test Notification** writes a clearly labeled test event; test events never trigger the real-event notification rules.
 
-All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`, usage metadata uses `usage.json`, and sanitized Telegram delivery metadata uses `telegram-deliveries.json`. These files never contain bot credentials, prompts, source code, or conversation text.
+All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`, usage metadata uses `usage.json`, sanitized Telegram delivery metadata uses `telegram-deliveries.json`, and bounded stable event IDs in `notification-claims.json` prevent duplicate local notifications across VS Code windows. These files never contain bot credentials, prompts, source code, or conversation text.
 
 ## Codex CLI integration
 
@@ -123,6 +144,10 @@ The active workspace must be trusted. AgentPilot passes no sandbox override, app
 
 Chat text is held only in Extension Host memory for the current run. `%USERPROFILE%\.agentpilot\codex-chat-sessions.json` stores bounded metadata only: AgentPilot session ID, Codex thread ID, generic title, project, selected model, lifecycle status, timestamps, last turn ID, and a sanitized error category. After restart, AgentPilot can resume the Codex thread, but the sidebar intentionally cannot reconstruct prior message text. Prompts and assistant output are not copied into AgentPilot storage.
 
+The v0.6.1 sidebar renders a safe Markdown subset, shows creation and last-activity times, follows streaming output only while the reader remains near the bottom, and uses Enter to send with Shift+Enter for a newline. Conversations can be renamed or removed from AgentPilot. Deletion is confirmed and removes only AgentPilot's local metadata; it does not delete a Codex thread or project files. A running or approval-waiting conversation must be stopped before deletion.
+
+Approval dialogs identify command execution, file changes, or extra permissions and place **Deny** first. Closing the dialog is also a denial. Malformed approval requests are rejected without opening a dialog, and no approval is granted automatically. If the app-server exits or the Extension Host restarts during a running turn or approval wait, the session is marked failed or interrupted rather than completed and can reconnect on a later send.
+
 Turn completion, interruption, failure, and approval attention events use the existing deduplicated VS Code, Windows, and Telegram pipeline. Usage continues through the existing metadata-only `UsageStore` and dashboard analytics.
 
 Official protocol references: [Codex App Server](https://developers.openai.com/codex/app-server) and [Codex as a platform](https://developers.openai.com/blog/codex-as-a-platform).
@@ -134,8 +159,37 @@ Official protocol references: [Codex App Server](https://developers.openai.com/c
 3. Wait for completed status and verify one completion notification in each enabled destination.
 4. In the same conversation send `Reply exactly SECOND. Do not use tools.` Confirm the same Codex thread ID is retained in `codex-chat-sessions.json` and usage increases without duplicate records.
 5. Start another harmless turn and select **Stop**. Confirm interrupted status.
-6. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Decline. Never approve an action you do not understand.
-7. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
+6. Confirm Enter sends, Shift+Enter inserts a newline, and scrolling upward during a streamed response is not overridden. Rename the conversation, then delete a disposable completed conversation and confirm the warning states that only local AgentPilot metadata is removed.
+7. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Deny. Dismissing the modal also denies. Never approve an action you do not understand.
+8. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
+
+## Smart Model Advisor
+
+Open **AgentPilot: Open Dashboard** and use **Smart Model Advisor** to analyze a task without running it. Model discovery follows the official [Codex app-server protocol](https://learn.chatgpt.com/docs/app-server), including its documented `model/list` method. The Advisor:
+
+- classifies explicit task characteristics locally using deterministic rules;
+- reads only models returned for the current authenticated Codex account by the official app-server `model/list` request;
+- compares only provider-supplied catalog descriptions and metadata;
+- labels ties or missing comparison evidence as a neutral result;
+- explains every score and its limitations; and
+- creates a new AgentPilot-owned conversation with a selected available model only when you choose **New chat**.
+
+Task descriptions remain in webview/Extension Host memory for the recommendation request and are not written to disk. The Advisor never executes them. Applying a model never changes an active conversation, and a running conversation must be completed or stopped before a new one is created.
+
+Priorities are evidence constrained. **Speed** uses only explicit catalog speed descriptions or tiers. **Quality** uses only explicit capability descriptions and task complexity characteristics. **Cost** uses explicit affordability metadata when present; without verified pricing, the result states that an API-equivalent cost comparison is unavailable. Local token totals are context only—not a quality score—and historical latency is not compared across unlike tasks.
+
+Optional feedback is stored locally in `%USERPROFILE%\.agentpilot\advisor-feedback.json` as model ID, task category, subjective outcome, and timestamp. It never includes task text, prompts, source code, or conversation content. Feedback sample sizes are shown conservatively and are not treated as objective model quality.
+
+### Advisor verification
+
+1. Open a trusted workspace and run **AgentPilot: Open Dashboard**.
+2. Confirm the available-model count and expand **Available models from model/list**.
+3. Try `Debug a concurrency regression across the entire codebase` with **Quality**, `Create a simple PowerShell script` with **Speed**, and an ambiguous description such as `Help me with this`.
+4. Confirm every returned model appears in the live available-model list, reasons cite catalog evidence, and ambiguous or tied evidence is labeled neutral.
+5. Select **New chat** for a model and confirm the sidebar opens a new conversation with that exact model selected. The Advisor must not execute the task description.
+6. Complete a task before recording optional feedback; inspect the feedback file and confirm it contains metadata only.
+
+The model catalog is account- and installation-dependent. AgentPilot does not hard-code model IDs, benchmark rankings, context windows, prices, or entitlement claims. A model returned by `model/list` is treated as available for selection, not as proof that every request will succeed.
 
 ## Token usage and cost analytics
 

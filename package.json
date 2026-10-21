@@ -1,9 +1,15 @@
 {
-  "name": "agentpilot-starter",
+  "name": "agentpilot",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.6.0",
+  "version": "0.8.0",
   "publisher": "agentpilot-local",
+  "preview": true,
+  "repository": { "type": "git", "url": "https://github.com/Aissarak8/agentpilot.git" },
+  "homepage": "https://github.com/Aissarak8/agentpilot#readme",
+  "bugs": { "url": "https://github.com/Aissarak8/agentpilot/issues" },
+  "categories": ["Other", "Visualization"],
+  "keywords": ["codex", "agents", "notifications", "telegram", "token usage"],
   "license": "MIT",
   "engines": { "vscode": "^1.90.0" },
   "main": "./extension.js",
@@ -50,5 +56,5 @@
       }
     }
   },
-  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js" }
+  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js", "package:v0.8": "npx --yes @vscode/vsce@4.0.0 package --out agentpilot-0.8.0.vsix" }
 }
