@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.8.2
+
+- Scoped Codex chat startup confirmation to new threads and process starts or restarts.
+- Prevented opening the sidebar or selecting a saved conversation from silently starting Codex.
+- Kept per-action approvals, workspace trust, and sandbox settings independent and fail-closed.
+
 ## 0.8.1
 
 - Fixed debugging tasks being labeled unknown when contextual security terms tied the old code-review rule.
