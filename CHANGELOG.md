@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+- Added a local, deterministic Smart Model Advisor with transparent task classification and complexity signals.
+- Reused the official Codex app-server `model/list` catalog and preserved sanitized comparison metadata.
+- Added neutral recommendations when verified speed, quality, or cost evidence cannot distinguish models.
+- Added safe creation of a new AgentPilot conversation with a selected available model; active conversations are never changed.
+- Added bounded metadata-only subjective feedback storage and advisor privacy/message-validation tests.
+
 ## 0.7.0-beta.1 — 2026-10-20
 
 - Packages AgentPilot as an installable private-beta VSIX for Windows and VS Code 1.90+.

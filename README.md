@@ -1,6 +1,6 @@
-# AgentPilot v0.7 Private Beta
+# AgentPilot v0.8 Smart Model Advisor
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.7.0-beta.1` is the first installable private beta, preserving the AgentPilot-owned task runner and interactive Codex chat, usage analytics, session recovery, and independent Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.8.0` adds an explainable Smart Model Advisor while preserving the v0.7 AgentPilot-owned task runner, interactive Codex chat, usage analytics, session recovery, and independent Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 The temporary private-beta extension identifier is `agentpilot-local.agentpilot`; `agentpilot-local` is not a Marketplace publisher identity. This VSIX is intended for local installation and is not published to the Marketplace.
 
@@ -162,6 +162,34 @@ Official protocol references: [Codex App Server](https://developers.openai.com/c
 6. Confirm Enter sends, Shift+Enter inserts a newline, and scrolling upward during a streamed response is not overridden. Rename the conversation, then delete a disposable completed conversation and confirm the warning states that only local AgentPilot metadata is removed.
 7. For approval UI testing, request a harmless read-only command, review the exact VS Code modal, and choose Approve once or Deny. Dismissing the modal also denies. Never approve an action you do not understand.
 8. Restart the Extension Development Host, select the prior session, and send a follow-up. The thread continues, while prior text remains absent by design.
+
+## Smart Model Advisor
+
+Open **AgentPilot: Open Dashboard** and use **Smart Model Advisor** to analyze a task without running it. Model discovery follows the official [Codex app-server protocol](https://learn.chatgpt.com/docs/app-server), including its documented `model/list` method. The Advisor:
+
+- classifies explicit task characteristics locally using deterministic rules;
+- reads only models returned for the current authenticated Codex account by the official app-server `model/list` request;
+- compares only provider-supplied catalog descriptions and metadata;
+- labels ties or missing comparison evidence as a neutral result;
+- explains every score and its limitations; and
+- creates a new AgentPilot-owned conversation with a selected available model only when you choose **New chat**.
+
+Task descriptions remain in webview/Extension Host memory for the recommendation request and are not written to disk. The Advisor never executes them. Applying a model never changes an active conversation, and a running conversation must be completed or stopped before a new one is created.
+
+Priorities are evidence constrained. **Speed** uses only explicit catalog speed descriptions or tiers. **Quality** uses only explicit capability descriptions and task complexity characteristics. **Cost** uses explicit affordability metadata when present; without verified pricing, the result states that an API-equivalent cost comparison is unavailable. Local token totals are context only—not a quality score—and historical latency is not compared across unlike tasks.
+
+Optional feedback is stored locally in `%USERPROFILE%\.agentpilot\advisor-feedback.json` as model ID, task category, subjective outcome, and timestamp. It never includes task text, prompts, source code, or conversation content. Feedback sample sizes are shown conservatively and are not treated as objective model quality.
+
+### Advisor verification
+
+1. Open a trusted workspace and run **AgentPilot: Open Dashboard**.
+2. Confirm the available-model count and expand **Available models from model/list**.
+3. Try `Debug a concurrency regression across the entire codebase` with **Quality**, `Create a simple PowerShell script` with **Speed**, and an ambiguous description such as `Help me with this`.
+4. Confirm every returned model appears in the live available-model list, reasons cite catalog evidence, and ambiguous or tied evidence is labeled neutral.
+5. Select **New chat** for a model and confirm the sidebar opens a new conversation with that exact model selected. The Advisor must not execute the task description.
+6. Complete a task before recording optional feedback; inspect the feedback file and confirm it contains metadata only.
+
+The model catalog is account- and installation-dependent. AgentPilot does not hard-code model IDs, benchmark rankings, context windows, prices, or entitlement claims. A model returned by `model/list` is treated as available for selection, not as proof that every request will succeed.
 
 ## Token usage and cost analytics
 
