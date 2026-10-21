@@ -7,6 +7,7 @@ const path=require('path');
 const { spawn:nodeSpawn }=require('child_process');
 const { atomicWrite }=require('./delivery-queue');
 const { CodexUsageStreamCollector }=require('./codex-usage-stream');
+const { acquireFileLock,processAlive }=require('./file-lock');
 
 const TERMINAL=new Set(['completed','failed','cancelled','interrupted']);
 const nowIso=now=>new Date(now()).toISOString();
@@ -25,12 +26,13 @@ function resolveExecutable(value,{env=process.env,platform=process.platform,exis
 }
 
 class TaskStore {
-  constructor(file,{now=Date.now,maxItems=100}={}){this.file=file;this.now=now;this.maxItems=maxItems;this.items=this.read();let changed=false;for(const item of this.items){if(item.status==='running'||item.status==='cancelling'){item.status='interrupted';item.errorCategory='extension_restart';item.endedAt=nowIso(this.now);item.durationMs=Math.max(0,this.now()-Date.parse(item.startedAt));changed=true;}}if(changed)this.save();}
+  constructor(file,{now=Date.now,maxItems=100}={}){this.file=file;this.now=now;this.maxItems=maxItems;this.items=[];this.transact(()=>{let changed=false;for(const item of this.items){if((item.status==='running'||item.status==='cancelling')&&!processAlive(item.ownerPid)){item.status='interrupted';item.ownerPid=null;item.errorCategory='extension_restart';item.endedAt=nowIso(this.now);item.durationMs=Math.max(0,this.now()-Date.parse(item.startedAt));changed=true;}}return changed;});}
   read(){try{if(fs.statSync(this.file).size>1024*1024)return[];const value=JSON.parse(fs.readFileSync(this.file,'utf8'));return Array.isArray(value.items)?value.items.filter(item=>item&&typeof item.id==='string').slice(-this.maxItems):[];}catch{return[];}}
   save(){this.items=this.items.slice(-this.maxItems);atomicWrite(this.file,{version:1,items:this.items});}
-  start(input){const item={id:clean(input.id,'',128),provider:'codex',project:clean(input.project),model:clean(input.model),status:'running',startedAt:input.startedAt,endedAt:null,durationMs:null,threadId:null,usageRecordId:null,errorCategory:null};this.items.push(item);this.save();return item;}
-  update(id,patch){const item=this.items.find(candidate=>candidate.id===id);if(!item)return null;Object.assign(item,patch);this.save();return item;}
-  recent(){return [...this.items].sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,20);}
+  transact(change){const release=acquireFileLock(this.file,{now:this.now});if(!release)throw Object.assign(new Error('Task metadata is busy.'),{code:'store_busy'});try{this.items=this.read();const save=change();if(save)this.save();return save;}finally{release();}}
+  start(input){let created;this.transact(()=>{created={id:clean(input.id,'',128),provider:'codex',project:clean(input.project),model:clean(input.model),status:'running',ownerPid:process.pid,startedAt:input.startedAt,endedAt:null,durationMs:null,threadId:null,usageRecordId:null,errorCategory:null};this.items.push(created);return true;});return created;}
+  update(id,patch){let updated=null;this.transact(()=>{const item=this.items.find(candidate=>candidate.id===id);if(!item)return false;Object.assign(item,patch);if(Object.prototype.hasOwnProperty.call(patch,'status'))item.ownerPid=['running','cancelling'].includes(patch.status)?process.pid:null;updated=item;return true;});return updated;}
+  recent(){this.items=this.read();return [...this.items].sort((a,b)=>String(b.startedAt).localeCompare(String(a.startedAt))).slice(0,20);}
 }
 
 class CodexTaskRunner extends EventEmitter {

@@ -7,5 +7,6 @@
 - Adds responsive, collapsible chat navigation, safer webview message validation, accessible focus behavior, and separate session/current-turn token totals.
 - Includes local usage analytics, resumable session metadata, explicit fail-closed approvals, and independent VS Code, Windows, and Telegram notifications.
 - Keeps prompts, source code, assistant messages, credentials, and private conversations out of AgentPilot persistence.
+- Stabilizes multi-window metadata writes and notification claims, prevents duplicate Telegram/Windows/VS Code delivery across windows, and blocks owned Codex processes in untrusted workspaces.
 
 This beta does not monitor conversations owned by the official Codex VS Code Extension.

@@ -13,6 +13,16 @@ The temporary private-beta extension identifier is `agentpilot-local.agentpilot`
 
 To roll back, uninstall AgentPilot from the Extensions view and reinstall an earlier VSIX if required. Uninstalling the extension does not remove local metadata under `%USERPROFILE%\.agentpilot`; delete that directory separately only after reviewing it and only if you intentionally want to remove the local history. Telegram credentials remain managed by VS Code SecretStorage.
 
+### Stabilization manual checks
+
+These checks require user observation and are not implied by automated tests:
+
+1. **Approval Deny:** in a disposable trusted workspace, ask AgentPilot Chat to run a harmless read-only command such as `git status`. Confirm the modal describes command execution, choose **Deny**, and verify no command result is produced. Repeat by closing the modal; dismissal must also deny.
+2. **Approval Allow:** repeat the same harmless read-only request, inspect the exact command, choose **Approve once**, and verify only that request runs. Never approve an unfamiliar command, file change, or permission request.
+3. **Telegram after completion:** configure the token and chat ID through AgentPilot commands, enable Telegram, complete one harmless AgentPilot-owned chat turn, and confirm one message arrives. Check delivery history for `sent`; if it is `uncertain`, inspect Telegram before manually retrying.
+4. **Resume after restart:** complete a turn, record the conversation title, restart VS Code, select that conversation, and send a follow-up. Confirm the same thread resumes while previous transcript text remains absent by design.
+5. **Windows notification:** enable Windows notifications and run **AgentPilot: Test Windows Notification**. Then complete one real turn and confirm a single native notification. Repeat with two VS Code windows to check that only one window dispatches each stable event.
+
 ## Install and run on Windows 11
 
 Requirements: VS Code 1.90+, Node.js 22, Python 3 available as `python`, Git, and Codex CLI for CLI events.
@@ -26,7 +36,7 @@ code .
 
 Press **F5** to launch an Extension Development Host. In that window run **AgentPilot: Open Dashboard**. **AgentPilot: Test Notification** writes a clearly labeled test event; test events never trigger the real-event notification rules.
 
-All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`, usage metadata uses `usage.json`, and sanitized Telegram delivery metadata uses `telegram-deliveries.json`. These files never contain bot credentials, prompts, source code, or conversation text.
+All data stays in `%USERPROFILE%\.agentpilot`. Existing v0.1 JSONL records remain readable. Events use `events.jsonl`, usage metadata uses `usage.json`, sanitized Telegram delivery metadata uses `telegram-deliveries.json`, and bounded stable event IDs in `notification-claims.json` prevent duplicate local notifications across VS Code windows. These files never contain bot credentials, prompts, source code, or conversation text.
 
 ## Codex CLI integration
 

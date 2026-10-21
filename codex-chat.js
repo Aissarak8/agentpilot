@@ -27,7 +27,7 @@ class CodexChatController extends EventEmitter {
   usageFor(session){if(!session?.threadId)return{inputTokens:0,outputTokens:0,cachedInputTokens:0,reasoningTokens:0,totalTokens:0};const records=this.usageStore.records.filter(record=>record.source==='codex-app-server'&&record.sessionId===session.threadId);return records.reduce((sum,record)=>{for(const key of Object.keys(sum))sum[key]+=Number(record[key]||0);return sum;},{inputTokens:0,outputTokens:0,cachedInputTokens:0,reasoningTokens:0,totalTokens:0});}
   state(){const current=this.current();return{sessions:this.sessions(),current:current?{...current}:null,messages:current?[...(this.messages.get(current.id)||[])]:[],models:this.models,usage:this.usageFor(current),turnUsage:current?this.turnUsage.get(current.id)||{inputTokens:0,outputTokens:0,cachedInputTokens:0,reasoningTokens:0,totalTokens:0}:null,historyPersisted:false};}
   emitState(){this.emit('state',this.state());}
-  dispose(){this.client?.stop();this.client=null;}
+  dispose(){try{for(const session of this.store.items.filter(item=>['running','waiting'].includes(item.status)))this.store.update(session.id,{status:'interrupted',lastErrorCategory:'extension_restart',updatedAt:new Date(this.now()).toISOString()});}catch(error){this.emit('diagnostic',{category:error.code||'session_cleanup'});}finally{this.client?.stop();this.client=null;this.loadedThreadId=null;}}
 }
 
 module.exports={CodexChatController};

@@ -11,7 +11,7 @@ const safeError=error=>safeText(error?.code||error?.codexErrorInfo?.type||error?
 
 class CodexAppServerClient extends EventEmitter {
   constructor({executable,cwd,usageStore,spawn=nodeSpawn,terminate=terminateProcess,requestTimeoutMs=15000,clientInfo}={}){
-    super();this.executable=executable;this.cwd=cwd;this.usageStore=usageStore;this.spawn=spawn;this.terminate=terminate;this.requestTimeoutMs=requestTimeoutMs;this.clientInfo=clientInfo||{name:'agentpilot',title:'AgentPilot',version:'0.6.1'};this.nextId=1;this.pending=new Map();this.pendingApprovals=new Map();this.buffer='';this.process=null;this.ready=false;this.stopping=false;this.stopTimer=null;this.stderrCategory=null;this.activeTurns=new Map();this.threadModels=new Map();this.models=[];
+    super();this.executable=executable;this.cwd=cwd;this.usageStore=usageStore;this.spawn=spawn;this.terminate=terminate;this.requestTimeoutMs=requestTimeoutMs;this.clientInfo=clientInfo||{name:'agentpilot',title:'AgentPilot',version:'0.7.0-beta.1'};this.nextId=1;this.pending=new Map();this.pendingApprovals=new Map();this.buffer='';this.process=null;this.ready=false;this.stopping=false;this.stopTimer=null;this.stderrCategory=null;this.activeTurns=new Map();this.threadModels=new Map();this.models=[];
   }
   async start(){
     if(this.ready)return this;

@@ -10,7 +10,7 @@ function validMessage(message){if(!message||typeof message!=='object'||Array.isA
 
 class ChatViewProvider {
   constructor({controller,vscode,extensionUri,output}){this.controller=controller;this.vscode=vscode;this.extensionUri=extensionUri;this.output=output;this.view=null;this.nonce=crypto.randomBytes(16).toString('hex');this.renderTimer=null;this.controller.on('state',()=>this.scheduleRender());}
-  resolveWebviewView(view){this.view=view;view.webview.options={enableScripts:true,localResourceRoots:[this.extensionUri]};view.webview.html=renderChat(this.nonce);view.webview.onDidReceiveMessage(message=>void this.onMessage(message));void this.controller.ensureClient().catch(error=>{this.log(error.code||'initialization');this.render();});}
+  resolveWebviewView(view){this.view=view;view.webview.options={enableScripts:true,localResourceRoots:[this.extensionUri]};view.webview.html=renderChat(this.nonce);view.webview.onDidReceiveMessage(message=>void this.onMessage(message));if(this.vscode.workspace.isTrusted)void this.controller.ensureClient().catch(error=>{this.log(error.code||'initialization');this.render();});else this.log('workspace_untrusted');}
   log(category){this.output?.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category})}`);}
   async onMessage(message){if(!validMessage(message)){this.log('invalid_webview_message');return;}try{
     if(message.action==='ready')this.render();

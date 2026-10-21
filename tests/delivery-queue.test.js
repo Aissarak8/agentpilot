@@ -70,3 +70,7 @@ test('manual retry requires failed or uncertain state', async () => {
   const {queue}=setup({send:async()=>{throw new TelegramError('timeout','safe');}}); queue.enqueue(event()); await queue.process(config);
   assert.equal(queue.manualRetry('event-1'),true); assert.equal(queue.items[0].status,'pending'); assert.equal(queue.manualRetry('event-1'),false);
 });
+
+test('multiple windows preserve queued events and persistent deduplication',()=>{const {file,queue:first}=setup(),second=new DeliveryQueue(file);assert.equal(first.enqueue(event({id:'one'})).status,'queued');assert.equal(second.enqueue(event({id:'two'})).status,'queued');assert.equal(second.enqueue(event({id:'one'})).status,'duplicate');assert.deepEqual(new DeliveryQueue(file).items.map(item=>item.sourceEventId).sort(),['one','two']);});
+
+test('multiple workers claim a delivery once and do not mark an active send uncertain',async()=>{let releaseSend,calls=0;const gate=new Promise(resolve=>{releaseSend=resolve;}),{file,queue:first}=setup({send:async()=>{calls++;await gate;return{message_id:9};}}),second=new DeliveryQueue(file,{send:async()=>{calls++;return{message_id:10};}});first.enqueue(event());const active=first.process(config);await new Promise(resolve=>setImmediate(resolve));const observer=new DeliveryQueue(file);assert.equal(observer.items[0].status,'sending');assert.equal((await second.process(config)).status,'idle');releaseSend();assert.equal((await active).status,'sent');assert.equal(calls,1);assert.equal(new DeliveryQueue(file).items[0].telegramMessageId,9);});
