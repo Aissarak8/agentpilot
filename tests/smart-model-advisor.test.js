@@ -15,6 +15,8 @@ const models=[
 ];
 
 test('classifies explicit task categories and returns unknown for insufficient or tied evidence',()=>{
+  assert.equal(classifyTask('Fix a complex authentication bug in a Node.js application involving JWT validation, refresh tokens, and session security.').category,'debugging');
+  for(const task of ['fix a bug','authentication bug','debug','troubleshoot','investigate an error','resolve a crash','fix a regression'])assert.equal(classifyTask(task).category,'debugging',task);
   assert.equal(classifyTask('Debug this crash and find the root cause').category,'debugging');
   assert.equal(classifyTask('Implement a new API feature').category,'code_generation');
   assert.equal(classifyTask('Refactor and simplify this module').category,'refactoring');
@@ -25,6 +27,7 @@ test('classifies explicit task categories and returns unknown for insufficient o
   assert.equal(classifyTask('Create a simple PowerShell script').category,'simple_scripting');
   assert.equal(classifyTask('Hello there').category,'unknown');
   assert.equal(classifyTask('Debug and refactor').category,'unknown');
+  assert.equal(classifyTask('Improve session security').category,'unknown');
   assert.equal(estimateComplexity('Review security across the entire codebase').level,'high');
 });
 
