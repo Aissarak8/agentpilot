@@ -32,3 +32,5 @@ test('requires fresh confirmation for a stopped process but keeps denial fail-cl
 test('opening the chat view does not launch Codex before confirmation',()=>{const {controller,provider}=providerFixture(),webview={options:null,html:'',onDidReceiveMessage:()=>{}};provider.resolveWebviewView({webview});assert.equal(controller.ensureCalls,0);assert.match(webview.html,/AgentPilot/);});
 
 test('startup prompt distinguishes a new thread from a process restart',()=>{assert.match(startupPrompt('start_thread','C:\\repo').message,/new AgentPilot-owned Codex conversation/);assert.match(startupPrompt('restart_process','C:\\repo').message,/Restart/);});
+
+test('premium chat exposes search, copy, jump, details and responsive accessible states',()=>{const html=renderChat('nonce');assert.match(html,/id="session-search"/);assert.match(html,/id="jump-latest"/);assert.match(html,/id="details-toggle"/);assert.match(html,/copy-message/);assert.match(html,/copy-code/);assert.match(html,/aria-live="assertive"/);assert.match(html,/prefers-reduced-motion/);assert.match(html,/@media\(max-width:330px\)/);assert.doesNotMatch(html,/https?:\/\//);});
