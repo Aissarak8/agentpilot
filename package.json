@@ -2,7 +2,7 @@
   "name": "agentpilot",
   "displayName": "AgentPilot",
   "description": "Local-first Codex and coding-agent event dashboard",
-  "version": "0.9.1-beta.1",
+  "version": "0.9.2-beta.1",
   "publisher": "agentpilot-local",
   "preview": true,
   "repository": { "type": "git", "url": "https://github.com/Aissarak8/agentpilot.git" },
@@ -56,5 +56,5 @@
       }
     }
   },
-  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js", "package:v0.9.1": "npx --yes @vscode/vsce@4.0.0 package --out agentpilot-0.9.1-beta.1.vsix" }
+  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js", "package:v0.9.2": "npx --yes @vscode/vsce@4.0.0 package --out agentpilot-0.9.2-beta.1.vsix" }
 }

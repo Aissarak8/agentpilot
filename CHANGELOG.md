@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.9.2-beta.1
+
+- Replaced the narrow dashboard's horizontally scrolling tabs with a labeled section dropdown, while preserving the wide sidebar, adding a compact medium-width rail, and retaining the active section across resizing.
+- Added readable chart dates, exact verified-token interactions for mouse, keyboard, and touch, plus an accessible data table and correct empty, zero, and single-day states.
+- Refined the Codex Chat header, model/status hierarchy, narrow-width action controls, message identity, long-content handling, and streaming layout stability.
+- Moved detailed session and current-turn token accounting into the details drawer, conditionally shows verified cached-input metadata, and clarifies why usage differs from newly typed text without inventing billing costs.
+- Added focused responsive-navigation, chart-accessibility, compact-header, message-layout, and token-detail regression coverage.
+
 ## 0.9.1-beta.1
 
 - Fixed Jump to latest appearing in empty chats and kept it synchronized with messages, streaming, and manual scroll position.
