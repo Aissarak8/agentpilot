@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.9.1-beta.1
+
+- Fixed Jump to latest appearing in empty chats and kept it synchronized with messages, streaming, and manual scroll position.
+- Added a centered, purposeful chat empty state and tightened narrow-sidebar hierarchy, message contrast, details, and composer layout.
+- Fixed legacy usage-card markup that allowed metric values and labels to collide.
+- Added responsive, tabular-number usage cards and tables with explicit unavailable API-equivalent costs.
+- Shortened notification health to an untruncated status while retaining detailed accessible context.
+- Improved activity timeline truncation, timestamp alignment, KPI sizing, and stacked narrow-width behavior.
+
+## 0.9.0-beta.1
+
+- Added a shared VS Code-native webview design system for dark, light, high-contrast, narrow-panel, and reduced-motion environments.
+- Rebuilt the dashboard around persistent keyboard-accessible Overview, Advisor, Usage, Activity, Notifications, and Settings sections.
+- Added verified token charts, lifecycle timelines, refined delivery history, and clearer cost-estimate labeling without inventing metrics.
+- Redesigned AgentPilot-owned Codex Chat with conversation search, a details drawer, copy actions, status announcements, and a manual jump-to-latest control.
+- Preserved strict CSP, local-only assets, sanitized Markdown, message allowlists, single-use startup confirmation, and per-action approvals.
+
 ## 0.8.2
 
 - Scoped Codex chat startup confirmation to new threads and process starts or restarts.
