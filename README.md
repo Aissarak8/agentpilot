@@ -1,6 +1,6 @@
-# AgentPilot v0.9 Premium UI Beta
+# AgentPilot v0.9.1 Premium UI Beta
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.9.0-beta.1` introduces a cohesive VS Code-native dashboard and chat experience with keyboard navigation, responsive layouts, verified-data charts, conversation search, copy actions, and accessible status feedback. Existing process consent, workspace trust, sandbox approvals, local storage, and notification guarantees remain intact. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.9.1-beta.1` polishes the premium interface with correct conditional jump-to-latest behavior, intentional chat empty states, collision-free usage metrics, compact activity layouts, and improved responsive KPI presentation. Existing process consent, workspace trust, sandbox approvals, local storage, and notification guarantees remain intact. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 The temporary private-beta extension identifier is `agentpilot-local.agentpilot`; `agentpilot-local` is not a Marketplace publisher identity. This VSIX is intended for local installation and is not published to the Marketplace.
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.1-beta.1
+
+- Fixed Jump to latest appearing in empty chats and kept it synchronized with messages, streaming, and manual scroll position.
+- Added a centered, purposeful chat empty state and tightened narrow-sidebar hierarchy, message contrast, details, and composer layout.
+- Fixed legacy usage-card markup that allowed metric values and labels to collide.
+- Added responsive, tabular-number usage cards and tables with explicit unavailable API-equivalent costs.
+- Shortened notification health to an untruncated status while retaining detailed accessible context.
+- Improved activity timeline truncation, timestamp alignment, KPI sizing, and stacked narrow-width behavior.
+
 ## 0.9.0-beta.1
 
 - Added a shared VS Code-native webview design system for dark, light, high-contrast, narrow-panel, and reduced-motion environments.
