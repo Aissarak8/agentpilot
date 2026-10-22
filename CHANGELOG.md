@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.9.3-beta.1
+
+- Fixed Codex app-server token overcounting by converting cumulative current-turn snapshots into persisted nonnegative deltas scoped by provider, session, source, and turn.
+- Added restart/replay, turn-boundary, model-change, partial-field, cached-input, reasoning-detail, and large-count regression coverage.
+- Added an explicit, local reconciliation dry-run with raw versus candidate totals and clear uncertainty for legacy records without turn IDs.
+- Added checksum-verified timestamped backups, stale-source detection, atomic projection metadata, and rollback without modifying raw usage records.
+- Updated dashboard provenance labels so legacy raw totals, candidate estimates, cached subsets, reasoning detail, and API-equivalent costs are not presented as billing facts.
+- Preserved the premium v0.9.2 navigation, charts, chat, Advisor, approval, and notification behavior.
+
 ## 0.9.2-beta.1
 
 - Replaced the narrow dashboard's horizontally scrolling tabs with a labeled section dropdown, while preserving the wide sidebar, adding a compact medium-width rail, and retaining the active section across resizing.

@@ -221,7 +221,19 @@ AgentPilot records usage only when an official structured payload explicitly con
 
 - **Codex IDE and existing sessions:** no public VS Code extension API or official local usage export was found for observing existing IDE-hosted conversations. AgentPilot therefore does not scan Codex session files, inspect authentication data, attach to private sockets, or intercept network traffic. **AgentPilot: Import Structured Usage JSON** remains available for explicit, read-only imports from an official export containing a `usage` object.
 
-Usage is stored atomically in `%USERPROFILE%\.agentpilot\usage.json`, capped at 5,000 records and retained for 90 days by default. Stable source IDs prevent duplicate imports. An adapter marked as cumulative is converted to incremental deltas using a persisted per-session cursor; Claude status-line records are treated as per-response snapshots and deduplicated without subtraction.
+Usage is stored atomically in `%USERPROFILE%\.agentpilot\usage.json`, capped at 5,000 records and retained for 90 days by default. Stable source IDs prevent duplicate imports. Codex app-server `tokenUsage.last` updates are cumulative snapshots for the active turn; AgentPilot converts them to nonnegative increments using persisted provider/session/source/turn cursors. Duplicate snapshots and restart replays therefore add no usage, and model-attribution changes do not reset accounting. Codex CLI `turn.completed.usage` and Claude status-line records remain incremental per-turn/per-response records and are not subtracted.
+
+### Historical usage reconciliation
+
+Versions before 0.9.3 incorrectly treated repeated Codex app-server snapshots as new usage. AgentPilot never rewrites `usage.json` automatically. Use these commands:
+
+1. **AgentPilot: Dry Run Usage Reconciliation** reads the store and reports raw totals, a candidate audit estimate, and the number of uncertain legacy records. It changes nothing.
+2. **AgentPilot: Apply Safe Usage Projection** repeats the dry-run, asks for explicit confirmation, creates a timestamped byte-for-byte backup with a verified SHA-256 checksum, and writes only derived metadata to `usage-reconciliation.json`.
+3. **AgentPilot: Roll Back Usage Projection** removes only the derived projection. Raw records and backups remain untouched.
+
+The source checksum is checked before backup and application. If new usage arrives, the operation stops as stale; an already enabled projection is labeled stale and is not applied. Cross-process lock directories and atomic replacement protect projection metadata.
+
+Legacy app-server records do not contain turn IDs, so the candidate estimate cannot always identify exact turn boundaries. AgentPilot preserves those records and labels them uncertain instead of guessing or silently replacing them. The projection currently excludes only records proven safe to exclude; ambiguous records remain in displayed totals. See `TOKEN_USAGE_AUDIT.md` for the audit methodology and limitations.
 
 The dashboard offers 7-day, 30-day, and all-time local views grouped by provider, model, project, day, week, and verified data source. Dates use the machine's local timezone. Empty and partially priced data remain explicit.
 
