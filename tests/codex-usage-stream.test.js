@@ -29,9 +29,9 @@ test('stream collector handles chunk boundaries, malformed lines and persistent 
   assert.equal(restarted.results[0].status,'duplicate'); assert.equal(new UsageStore(file,{retentionDays:36500}).records.length,1);
 });
 
-test('normalizes documented app-server token usage notification using last-turn counts',()=>{
+test('normalizes app-server last-turn usage as a cumulative snapshot',()=>{
   const record=new CodexUsageAdapter().normalize({method:'thread/tokenUsage/updated',params:{threadId:'thread',turnId:'turn',tokenUsage:{last:{inputTokens:20,cachedInputTokens:4,cacheWriteInputTokens:1,outputTokens:3,reasoningOutputTokens:2,totalTokens:23},total:{inputTokens:200,outputTokens:30,totalTokens:230}}}},{project:'repo',model:'gpt-test'});
-  assert.deepEqual({source:record.source,accounting:record.accounting,input:record.inputTokens,total:record.totalTokens,reasoning:record.reasoningTokens},{source:'codex-app-server',accounting:'incremental',input:20,total:23,reasoning:2});
+  assert.deepEqual({source:record.source,accounting:record.accounting,turnId:record.turnId,input:record.inputTokens,total:record.totalTokens,reasoning:record.reasoningTokens},{source:'codex-app-server',accounting:'cumulative',turnId:'turn',input:20,total:23,reasoning:2});
 });
 
 test('extracts only explicitly supplied CLI model attribution',()=>{
