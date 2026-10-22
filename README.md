@@ -1,6 +1,6 @@
-# AgentPilot v0.8 Smart Model Advisor
+# AgentPilot v0.8.2 Smart Model Advisor
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.8.0` adds an explainable Smart Model Advisor while preserving the v0.7 AgentPilot-owned task runner, interactive Codex chat, usage analytics, session recovery, and independent Telegram and Windows notifications. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.8.2` keeps startup confirmation scoped to an actual AgentPilot-owned Codex process or thread start: normal turns in a live conversation do not ask again, while a new thread or process restart requires fresh confirmation. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 The temporary private-beta extension identifier is `agentpilot-local.agentpilot`; `agentpilot-local` is not a Marketplace publisher identity. This VSIX is intended for local installation and is not published to the Marketplace.
 

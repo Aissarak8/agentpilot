@@ -10,7 +10,7 @@ function validMessage(message){if(!message||typeof message!=='object'||Array.isA
 
 class ChatViewProvider {
   constructor({controller,vscode,extensionUri,output}){this.controller=controller;this.vscode=vscode;this.extensionUri=extensionUri;this.output=output;this.view=null;this.nonce=crypto.randomBytes(16).toString('hex');this.renderTimer=null;this.controller.on('state',()=>this.scheduleRender());}
-  resolveWebviewView(view){this.view=view;view.webview.options={enableScripts:true,localResourceRoots:[this.extensionUri]};view.webview.html=renderChat(this.nonce);view.webview.onDidReceiveMessage(message=>void this.onMessage(message));if(this.vscode.workspace.isTrusted)void this.controller.ensureClient().catch(error=>{this.log(error.code||'initialization');this.render();});else this.log('workspace_untrusted');}
+  resolveWebviewView(view){this.view=view;view.webview.options={enableScripts:true,localResourceRoots:[this.extensionUri]};view.webview.html=renderChat(this.nonce);view.webview.onDidReceiveMessage(message=>void this.onMessage(message));if(!this.vscode.workspace.isTrusted)this.log('workspace_untrusted');}
   log(category){this.output?.appendLine(`${new Date().toISOString()} Codex chat ${JSON.stringify({category})}`);}
   async onMessage(message){if(!validMessage(message)){this.log('invalid_webview_message');return;}try{
     if(message.action==='ready')this.render();
@@ -18,7 +18,7 @@ class ChatViewProvider {
     else if(message.action==='switch')await this.controller.selectSession(message.id);
     else if(message.action==='rename'){const current=this.controller.current();if(!current)return;const title=await this.vscode.window.showInputBox({title:'Rename AgentPilot conversation',value:current.title,prompt:'Only this local AgentPilot metadata is changed.',validateInput:value=>value.trim()?undefined:'Enter a conversation name.'});if(title)this.controller.renameSession(current.id,title);}
     else if(message.action==='delete'){const current=this.controller.current();if(!current)return;const choice=await this.vscode.window.showWarningMessage(`Delete the local AgentPilot metadata for “${current.title}”?`,{modal:true,detail:'This removes the conversation from AgentPilot. It does not delete the Codex thread or any project files.'},'Delete');if(choice==='Delete')this.controller.deleteSession(current.id);}
-    else if(message.action==='send'){if(!this.vscode.workspace.workspaceFolders?.[0]){this.vscode.window.showErrorMessage('AgentPilot Chat requires an open workspace folder.');return;}if(!this.vscode.workspace.isTrusted){this.vscode.window.showErrorMessage('AgentPilot Chat requires a trusted VS Code workspace.');return;}const text=typeof message.text==='string'?message.text.trim():'';if(!text)return;const current=this.controller.current();if(!current?.threadId){const choice=await this.vscode.window.showWarningMessage(`Start an AgentPilot-owned Codex conversation in ${this.controller.cwd.split(/[\\/]/).pop()} using your existing sandbox and approval policy?`,{modal:true,detail:'AgentPilot sends this task only to the Codex process it starts. It does not bypass sandbox or approval settings.'},'Start');if(choice!=='Start')return;}await this.controller.send(text,{model:message.model||undefined});}
+    else if(message.action==='send'){if(!this.vscode.workspace.workspaceFolders?.[0]){this.vscode.window.showErrorMessage('AgentPilot Chat requires an open workspace folder.');return;}if(!this.vscode.workspace.isTrusted){this.vscode.window.showErrorMessage('AgentPilot Chat requires a trusted VS Code workspace.');return;}const text=typeof message.text==='string'?message.text.trim():'';if(!text)return;const requirement=this.controller.startupRequirement();if(requirement){const prompt=startupPrompt(requirement,this.controller.cwd);const choice=await this.vscode.window.showWarningMessage(prompt.message,{modal:true,detail:prompt.detail},'Start');if(choice!=='Start')return;}await this.controller.send(text,{model:message.model||undefined});}
     else if(message.action==='stop')await this.controller.stop();
   }catch(error){this.log(error.code||'chat_action');this.vscode.window.showErrorMessage(`AgentPilot Chat: ${readableError(error.code)}.`);}}
   scheduleRender(){if(this.renderTimer)return;this.renderTimer=setTimeout(()=>{this.renderTimer=null;this.render();},50);}
@@ -26,6 +26,7 @@ class ChatViewProvider {
 }
 
 function readableError(code){return({turn_active:'A turn is already running',session_not_found:'Conversation not found',request_timeout:'Codex did not respond in time',not_running:'The Codex app-server is unavailable',thread_start_failed:'Codex could not create a thread'}[code]||'The request failed');}
+function startupPrompt(requirement,cwd){const project=String(cwd||'workspace').split(/[\\/]/).pop()||'workspace',detail='AgentPilot sends this task only to the Codex process it starts. It does not bypass sandbox or approval settings.';if(requirement==='restart_process')return{message:`Restart the AgentPilot-owned Codex process in ${project} and resume this conversation using your existing sandbox and approval policy?`,detail};if(requirement==='start_thread')return{message:`Start a new AgentPilot-owned Codex conversation in ${project} using the running Codex process and your existing sandbox and approval policy?`,detail};return{message:`Start an AgentPilot-owned Codex conversation in ${project} using your existing sandbox and approval policy?`,detail};}
 
 function renderChat(nonce='agentpilot-chat'){
   return `<!doctype html><html><head><meta charset="UTF-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'nonce-${escapeHtml(nonce)}'"><style>
@@ -44,4 +45,4 @@ prompt.addEventListener('keydown',event=>{if(event.key==='Enter'&&!event.shiftKe
 </script></body></html>`;
 }
 
-module.exports={ChatViewProvider,escapeHtml,publicState,readableError,renderChat,validMessage};
+module.exports={ChatViewProvider,escapeHtml,publicState,readableError,renderChat,startupPrompt,validMessage};

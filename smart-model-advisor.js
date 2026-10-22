@@ -6,10 +6,10 @@ const { atomicWrite }=require('./delivery-queue');
 const { acquireFileLock }=require('./file-lock');
 
 const CATEGORIES={
-  debugging:[/\b(debug|bug|fix|error|exception|crash|regression|root cause)\b/i],
+  debugging:[/\b(debug|troubleshoot)\w*\b/i,/\b(bug|error|exception|crash|regression|root cause)\b/i,/\b(fix|resolve|investigate)\b(?:\s+[a-z0-9_.-]+){0,6}\s+\b(bug|error|exception|crash|regression)\b/i],
   code_generation:[/\b(implement|build|create|add|generate|scaffold)\b/i,/\b(feature|function|class|api|component)\b/i],
   refactoring:[/\b(refactor|restructure|cleanup|clean up|extract|rename|simplif)\w*\b/i],
-  code_review:[/\b(review|audit|inspect)\b/i,/\b(code|pull request|pr|diff|security)\b/i],
+  code_review:[/\b(review|audit|inspect)\w*\b/i,/\b(code review|review (a |the )?(pull request|pr|diff)|security audit)\b/i],
   test_generation:[/\b(test|tests|testing|coverage|spec|fixture|mock)\b/i,/\b(generate|write|add|create)\s+(unit |integration |regression )?tests?\b/i],
   architecture_planning:[/\b(architect|architecture|design|plan|strategy|trade[ -]?off|system design)\b/i],
   documentation:[/\b(document|documentation|readme|guide|docs|comment|changelog)\b/i],
