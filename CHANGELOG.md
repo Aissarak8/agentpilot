@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.0-rc.1
+
+- Prevented Dashboard opening from starting Codex without the existing single-use process confirmation.
+- Made malformed or oversized usage, chat, task, Telegram queue, notification-claim, and Advisor stores fail closed instead of being overwritten by the next write.
+- Serialized extension-owned event appends to preserve deduplication across concurrent VS Code windows.
+- Avoided rebuilding the complete Dashboard during idle polling when no lifecycle event changed.
+- Added actionable native-Codex executable guidance and first-run release-candidate instructions.
+- Preserved v0.9.3 cumulative-snapshot accounting and the non-destructive, explicitly approved historical reconciliation workflow.
+
+## 0.9.3-beta.1
+
+- Fixed Codex app-server token overcounting by converting cumulative current-turn snapshots into persisted nonnegative deltas scoped by provider, session, source, and turn.
+- Added restart/replay, turn-boundary, model-change, partial-field, cached-input, reasoning-detail, and large-count regression coverage.
+- Added an explicit, local reconciliation dry-run with raw versus candidate totals and clear uncertainty for legacy records without turn IDs.
+- Added checksum-verified timestamped backups, stale-source detection, atomic projection metadata, and rollback without modifying raw usage records.
+- Updated dashboard provenance labels so legacy raw totals, candidate estimates, cached subsets, reasoning detail, and API-equivalent costs are not presented as billing facts.
+- Preserved the premium v0.9.2 navigation, charts, chat, Advisor, approval, and notification behavior.
+
+## 0.9.2-beta.1
+
+- Replaced the narrow dashboard's horizontally scrolling tabs with a labeled section dropdown, while preserving the wide sidebar, adding a compact medium-width rail, and retaining the active section across resizing.
+- Added readable chart dates, exact verified-token interactions for mouse, keyboard, and touch, plus an accessible data table and correct empty, zero, and single-day states.
+- Refined the Codex Chat header, model/status hierarchy, narrow-width action controls, message identity, long-content handling, and streaming layout stability.
+- Moved detailed session and current-turn token accounting into the details drawer, conditionally shows verified cached-input metadata, and clarifies why usage differs from newly typed text without inventing billing costs.
+- Added focused responsive-navigation, chart-accessibility, compact-header, message-layout, and token-detail regression coverage.
+
 ## 0.9.1-beta.1
 
 - Fixed Jump to latest appearing in empty chats and kept it synchronized with messages, streaming, and manual scroll position.

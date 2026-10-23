@@ -3,12 +3,14 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { corruptStoreError,readJsonState }=require('./file-lock');
 
 const TOKEN_FIELDS = ['inputTokens', 'outputTokens', 'cachedInputTokens', 'reasoningTokens', 'cacheCreationInputTokens', 'totalTokens'];
 const asCount = value => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.trunc(Number(value)) : undefined;
 const first = (...values) => values.find(value => value !== undefined && value !== null && value !== '');
 const stableId = parts => crypto.createHash('sha256').update(parts.map(value => String(value ?? '')).join('\u001f')).digest('hex').slice(0, 32);
 const safeText = (value, fallback = 'unknown') => typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : fallback;
+const optionalText = value => typeof value === 'string' && value.trim() ? value.trim().slice(0, 200) : undefined;
 
 function finalize(record, identity) {
   const parsedTime = Date.parse(record.timestamp || '');
@@ -23,6 +25,7 @@ function finalize(record, identity) {
     confidence: record.confidence || 'verified',
     accounting: record.accounting === 'cumulative' ? 'cumulative' : 'incremental'
   };
+  const turnId=optionalText(record.turnId);if(turnId)clean.turnId=turnId;
   for (const field of TOKEN_FIELDS) {
     const value = asCount(record[field]);
     if (value !== undefined) clean[field] = value;
@@ -50,7 +53,8 @@ class CodexUsageAdapter {
       model: first(payload.model, payload.turn?.model, context.model),
       project: first(context.project, payload.project),
       sessionId: first(notification?.threadId, payload.thread_id, payload.session_id, context.sessionId),
-      accounting: first(context.accounting, payload.accounting, tokenUsage?.last ? 'incremental' : undefined),
+      turnId: first(notification?.turnId, payload.turn_id, payload.turn?.id, context.turnId),
+      accounting: first(context.accounting, payload.accounting, tokenUsage?.last ? 'cumulative' : undefined),
       inputTokens: first(usage.input_tokens, usage.inputTokens),
       outputTokens: first(usage.output_tokens, usage.outputTokens),
       cachedInputTokens: first(usage.cached_input_tokens, inputDetails.cached_tokens, inputDetails.cachedTokens),
@@ -81,14 +85,12 @@ class ClaudeUsageAdapter {
 }
 
 class UsageStore {
-  constructor(file, options = {}) { this.file = file; this.maxRecords = options.maxRecords || 5000; this.retentionDays = options.retentionDays || 90; this.records = []; this.cursors = {}; this.load(); }
+  constructor(file, options = {}) { this.file = file; this.maxRecords = options.maxRecords || 5000; this.retentionDays = options.retentionDays || 90; this.records = []; this.cursors = {}; this.loadStatus='missing';this.load(); }
   load() {
-    try {
-      const stat = fs.statSync(this.file); if (stat.size > 5 * 1024 * 1024) return;
-      const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      this.records = Array.isArray(parsed.records) ? parsed.records.filter(item => item && typeof item.id === 'string').slice(-this.maxRecords) : [];
-      this.cursors = parsed.cursors && typeof parsed.cursors === 'object' ? parsed.cursors : {};
-    } catch { this.records = []; this.cursors = {}; }
+    const state=readJsonState(this.file,{maxBytes:5*1024*1024});this.loadStatus=state.status;
+    if(state.status==='missing'){this.records=[];this.cursors={};return;}
+    if(state.status!=='ok'||!state.value||typeof state.value!=='object'||!Array.isArray(state.value.records)){this.loadStatus='corrupt';this.records=[];this.cursors={};return;}
+    const parsed=state.value;this.records=parsed.records.filter(item=>item&&typeof item.id==='string').slice(-this.maxRecords);this.cursors=parsed.cursors&&typeof parsed.cursors==='object'?parsed.cursors:{};
     this.prune(false);
   }
   prune(save = true) {
@@ -105,12 +107,13 @@ class UsageStore {
   }
   addLocked(record) {
     this.load();
+    if(this.loadStatus==='corrupt'||this.loadStatus==='oversized')return{status:'store_corrupt'};
     if (!record || this.records.some(item => item.id === record.id)) return { status: 'duplicate' };
     let stored = { ...record };
     if (record.accounting === 'cumulative') {
-      const key = [record.provider, record.sessionId, record.model, record.source].join('\u001f');
+      const key = [record.provider, record.sessionId, record.source, record.turnId || 'session'].join('\u001f');
       const previous = this.cursors[key] || {};
-      const snapshot = {};
+      const snapshot = { ...previous };
       if (TOKEN_FIELDS.some(field => record[field] !== undefined && previous[field] !== undefined && record[field] < previous[field])) return { status:'stale' };
       for (const field of TOKEN_FIELDS) { if (record[field] !== undefined) { snapshot[field] = record[field]; stored[field] = Math.max(0, record[field] - (previous[field] || 0)); } }
       this.cursors[key] = snapshot;
@@ -120,10 +123,11 @@ class UsageStore {
     this.records.push(stored); this.prune(false); this.save(); return { status: 'stored', record: stored };
   }
   save() {
+    if(this.loadStatus==='corrupt'||this.loadStatus==='oversized')throw corruptStoreError();
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temp = `${this.file}.${process.pid}.${Date.now()}.tmp`;
     fs.writeFileSync(temp, JSON.stringify({ version: 1, records: this.records, cursors: this.cursors }), { encoding: 'utf8', mode: 0o600 });
-    fs.renameSync(temp, this.file);
+    fs.renameSync(temp, this.file);this.loadStatus='ok';
   }
 }
 
@@ -152,11 +156,12 @@ function usageAnalytics(records, estimator, options = {}) {
   if (days) { boundary.setHours(0,0,0,0); boundary.setDate(boundary.getDate() - (days - 1)); }
   const cutoff = days ? boundary.getTime() : 0;
   const filtered = records.filter(record => !cutoff || Date.parse(record.timestamp) >= cutoff);
-  const totals = { records: filtered.length, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, reasoningTokens: 0, totalTokens: 0, estimatedCost: 0, pricedRecords: 0 };
+  const totals = { records: filtered.length, inputTokens: 0, outputTokens: 0, cachedInputTokens: 0, nonCachedInputTokens: 0, cacheBreakdownRecords: 0, reasoningTokens: 0, totalTokens: 0, estimatedCost: 0, pricedRecords: 0 };
   const byProvider = {}, byModel = {}, byProject = {}, bySource = {}, daily = {}, weekly = {};
   const add = (map, key, record) => { const row = map[key] ||= { records:0,totalTokens:0,estimatedCost:0,pricedRecords:0 }; row.records++; row.totalTokens += record.totalTokens || 0; const cost=estimator.estimate(record); if(cost.available){row.estimatedCost+=cost.amount;row.pricedRecords++;} };
   for (const record of filtered) {
     for (const field of ['inputTokens','outputTokens','cachedInputTokens','reasoningTokens','totalTokens']) totals[field] += record[field] || 0;
+    if(record.inputTokens!==undefined&&(record.cachedInputTokens!==undefined||record.cacheCreationInputTokens!==undefined)){totals.cacheBreakdownRecords++;totals.nonCachedInputTokens+=Math.max(0,(record.inputTokens||0)-(record.cachedInputTokens||0)-(record.cacheCreationInputTokens||0));}
     const cost = estimator.estimate(record); if (cost.available) { totals.estimatedCost += cost.amount; totals.pricedRecords++; }
     add(byProvider, record.provider, record); add(byModel, record.model, record); add(byProject, record.project, record); add(bySource, `${record.source} (${record.confidence})`, record); add(daily, dayKey(record.timestamp), record); add(weekly, weekKey(record.timestamp), record);
   }

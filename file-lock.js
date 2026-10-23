@@ -19,4 +19,11 @@ function acquireFileLock(file,{waitMs=1000,staleMs=30000,now=Date.now}={}){
 
 function processAlive(pid){if(!Number.isInteger(pid)||pid<=0)return false;try{process.kill(pid,0);return true;}catch{return false;}}
 
-module.exports={acquireFileLock,processAlive};
+function readJsonState(file,{maxBytes=1024*1024}={}){
+  try{const stat=fs.statSync(file);if(stat.size>maxBytes)return{status:'oversized',value:null};return{status:'ok',value:JSON.parse(fs.readFileSync(file,'utf8'))};}
+  catch(error){return{status:error.code==='ENOENT'?'missing':'corrupt',value:null};}
+}
+
+function corruptStoreError(){return Object.assign(new Error('Local metadata is malformed or oversized.'),{code:'store_corrupt'});}
+
+module.exports={acquireFileLock,corruptStoreError,processAlive,readJsonState};

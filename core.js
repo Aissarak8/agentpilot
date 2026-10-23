@@ -1,5 +1,6 @@
 'use strict';
 const fs=require('fs'); const crypto=require('crypto');
+const {acquireFileLock}=require('./file-lock');
 const AGENTS=new Set(['codex','claude','test']);
 const KINDS=new Set(['completed','attention','failed','interrupted','session_started','session_ended']);
 const clean=(v,f='',n=160)=>(typeof v==='string'||typeof v==='number')?String(v).slice(0,n):f;
@@ -13,6 +14,6 @@ function normalizeEvent(input,defaults={}) {
   return event;
 }
 function readEvents(file,limit=500){try{return fs.readFileSync(file,'utf8').split(/\r?\n/).filter(Boolean).slice(-limit).map(line=>{try{return normalizeEvent(JSON.parse(line));}catch{return null;}}).filter(Boolean);}catch{return [];}}
-function appendEvent(file,input){const event=normalizeEvent(input);if(!event)return{stored:false,reason:'invalid'};if(readEvents(file).some(e=>e.id===event.id))return{stored:false,reason:'duplicate',event};fs.appendFileSync(file,`${JSON.stringify(event)}\n`,'utf8');return{stored:true,event};}
+function appendEvent(file,input){const event=normalizeEvent(input);if(!event)return{stored:false,reason:'invalid'};const release=acquireFileLock(file);if(!release)return{stored:false,reason:'busy',event};try{if(readEvents(file).some(e=>e.id===event.id))return{stored:false,reason:'duplicate',event};fs.appendFileSync(file,`${JSON.stringify(event)}\n`,'utf8');return{stored:true,event};}finally{release();}}
 function dashboardData(events){const safe=events.map(normalizeEvent).filter(Boolean),real=safe.filter(e=>!e.test),latest=new Map();for(const e of real)latest.set(`${e.agent}:${e.sessionId||e.project}`,e);const status={codex:'unknown',claude:'unknown'};for(const e of latest.values())if(e.agent in status)status[e.agent]=e.kind==='attention'?'needs input':e.kind==='failed'?'error':e.kind==='session_started'?'active':'idle';return{total:safe.length,real:real.length,tests:safe.length-real.length,codex:real.filter(e=>e.agent==='codex').length,claude:real.filter(e=>e.agent==='claude').length,status,recent:safe.slice(-100).reverse()};}
 module.exports={appendEvent,dashboardData,normalizeEvent,readEvents};

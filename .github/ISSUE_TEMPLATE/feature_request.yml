@@ -1,0 +1,25 @@
+name: Feature request
+description: Suggest a scoped AgentPilot improvement
+title: "[Feature]: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What supported workflow is difficult today?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+    validations:
+      required: true
+  - type: textarea
+    id: security
+    attributes:
+      label: Privacy, approval, and compatibility considerations
+      description: Explain any new data, process, network, or credential access.
+    validations:
+      required: true

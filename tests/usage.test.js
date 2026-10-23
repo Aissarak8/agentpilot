@@ -45,6 +45,27 @@ test('cumulative snapshots become increments without double counting', () => {
   assert.equal(store.records.at(-1).totalTokens,13);
 });
 
+test('cumulative app-server snapshots are isolated per turn and survive restart', t => {
+  const file=temporary(t), timestamp=new Date().toISOString();
+  const base={timestamp,provider:'codex',model:'model-a',project:'p',sessionId:'session',source:'codex-app-server',confidence:'verified',accounting:'cumulative'};
+  const store=new UsageStore(file,{retentionDays:36500});
+  assert.equal(store.add({...base,id:'a',turnId:'turn-1',inputTokens:100,outputTokens:10,totalTokens:110}).status,'stored');
+  assert.equal(store.add({...base,id:'b',turnId:'turn-1',model:'model-renamed',inputTokens:140,outputTokens:15,totalTokens:155}).record.totalTokens,45);
+  const restarted=new UsageStore(file,{retentionDays:36500});
+  assert.equal(restarted.add({...base,id:'replay',turnId:'turn-1',inputTokens:140,outputTokens:15,totalTokens:155}).status,'duplicate');
+  assert.equal(restarted.add({...base,id:'c',turnId:'turn-2',inputTokens:20,outputTokens:3,totalTokens:23}).record.totalTokens,23);
+  assert.equal(restarted.records.reduce((sum,record)=>sum+record.totalTokens,0),178);
+});
+
+test('partial cumulative snapshots preserve prior fields and large counts remain exact', t => {
+  const file=temporary(t), store=new UsageStore(file,{retentionDays:36500});
+  const base={timestamp:new Date().toISOString(),provider:'codex',model:'m',project:'p',sessionId:'s',turnId:'t',source:'codex-app-server',confidence:'verified',accounting:'cumulative'};
+  store.add({...base,id:'one',inputTokens:9_000_000_000,cachedInputTokens:2_000_000_000,outputTokens:100,totalTokens:9_000_000_100});
+  const result=store.add({...base,id:'two',inputTokens:9_000_000_010,totalTokens:9_000_000_115});
+  assert.equal(result.record.inputTokens,10); assert.equal(result.record.totalTokens,15);
+  assert.equal(store.cursors[Object.keys(store.cursors)[0]].cachedInputTokens,2_000_000_000);
+});
+
 test('cost estimator handles cached input and makes unknown pricing unavailable', () => {
   const estimator=new CostEstimator({}, {'codex:m':{input:2,cachedInput:1,output:4,unit:1000,currency:'USD',source:'official',effectiveDate:'2026-01-01'}});
   const result=estimator.estimate({provider:'codex',model:'m',inputTokens:100,cachedInputTokens:50,outputTokens:25});
@@ -63,6 +84,15 @@ test('analytics groups data and honors date windows', () => {
   const records=[{timestamp:now.toISOString(),provider:'codex',model:'x',project:'a',totalTokens:10},{timestamp:old,provider:'claude',model:'y',project:'b',totalTokens:20}];
   const data=usageAnalytics(records,new CostEstimator(),{days:30});
   assert.equal(data.totals.records,1); assert.equal(data.byProvider.codex.totalTokens,10); assert.equal(data.byProvider.claude,undefined);
+});
+
+test('analytics treats cached input as a subset and reasoning as output detail', () => {
+  const records=[
+    {timestamp:new Date().toISOString(),provider:'codex',model:'x',project:'a',source:'cli',inputTokens:100,cachedInputTokens:40,outputTokens:20,reasoningTokens:5,totalTokens:120},
+    {timestamp:new Date().toISOString(),provider:'codex',model:'x',project:'a',source:'app',inputTokens:50,outputTokens:10,totalTokens:60}
+  ];
+  const data=usageAnalytics(records,new CostEstimator(),{days:0});
+  assert.deepEqual({total:data.totals.totalTokens,cached:data.totals.cachedInputTokens,knownNonCached:data.totals.nonCachedInputTokens,coverage:data.totals.cacheBreakdownRecords,reasoning:data.totals.reasoningTokens},{total:180,cached:40,knownNonCached:60,coverage:1,reasoning:5});
 });
 
 test('malformed and oversized stores fail closed without exposing content', () => {

@@ -3,7 +3,7 @@
 const crypto=require('crypto');
 const fs=require('fs');
 const { atomicWrite }=require('./delivery-queue');
-const { acquireFileLock }=require('./file-lock');
+const { acquireFileLock,readJsonState }=require('./file-lock');
 
 const CATEGORIES={
   debugging:[/\b(debug|troubleshoot)\w*\b/i,/\b(bug|error|exception|crash|regression|root cause)\b/i,/\b(fix|resolve|investigate)\b(?:\s+[a-z0-9_.-]+){0,6}\s+\b(bug|error|exception|crash|regression)\b/i],
@@ -51,8 +51,8 @@ function recommend({task='',priority='quality',models=[],usageRecords=[],feedbac
 
 class AdvisorFeedbackStore{
   constructor(file,{maxItems=500}={}){this.file=file;this.maxItems=maxItems;this.items=this.read();}
-  read(){try{if(fs.statSync(this.file).size>1024*1024)return[];const value=JSON.parse(fs.readFileSync(this.file,'utf8'));return(Array.isArray(value.items)?value.items:[]).filter(item=>item&&typeof item.id==='string'&&OUTCOMES.has(item.outcome)).slice(-this.maxItems);}catch{return[];}}
-  add({model,category,outcome}){if(!OUTCOMES.has(outcome)||!clean(model)||!LABELS[category])return{stored:false,reason:'invalid'};const release=acquireFileLock(this.file);if(!release)return{stored:false,reason:'busy'};try{this.items=this.read();const item={id:`feedback-${crypto.randomUUID()}`,model:clean(model),category,timestamp:new Date().toISOString(),outcome};this.items.push(item);this.items=this.items.slice(-this.maxItems);atomicWrite(this.file,{version:1,items:this.items});return{stored:true,item};}finally{release();}}
+  read(){const state=readJsonState(this.file);this.readStatus=state.status;if(state.status==='missing')return[];if(state.status!=='ok'||!state.value||!Array.isArray(state.value.items)){this.readStatus='corrupt';return[];}return state.value.items.filter(item=>item&&typeof item.id==='string'&&OUTCOMES.has(item.outcome)).slice(-this.maxItems);}
+  add({model,category,outcome}){if(!OUTCOMES.has(outcome)||!clean(model)||!LABELS[category])return{stored:false,reason:'invalid'};const release=acquireFileLock(this.file);if(!release)return{stored:false,reason:'busy'};try{this.items=this.read();if(['corrupt','oversized'].includes(this.readStatus))return{stored:false,reason:'store_corrupt'};const item={id:`feedback-${crypto.randomUUID()}`,model:clean(model),category,timestamp:new Date().toISOString(),outcome};this.items.push(item);this.items=this.items.slice(-this.maxItems);atomicWrite(this.file,{version:1,items:this.items});return{stored:true,item};}finally{release();}}
 }
 
 module.exports={AdvisorFeedbackStore,CATEGORIES,LABELS,classifyTask,estimateComplexity,normalizeModels,recommend};
