@@ -18,6 +18,21 @@ Thanks for helping improve AgentPilot.
 6. If runtime files changed, build and inspect a VSIX with `npm run package:rc`.
 7. Open a pull request explaining behavior, tests, manual verification, privacy impact, and remaining limitations.
 
+## Choosing a first contribution
+
+Look for issues labeled [`good first issue`](https://github.com/Aissarak8/agentpilot/labels/good%20first%20issue). A suitable first change should be bounded, independently testable, and avoid changing AgentPilot's security boundaries. Comment on the issue before starting substantial work so maintainers and contributors do not duplicate effort.
+
+Documentation-only contributions do not require a VSIX build. Runtime changes should include relevant automated tests and a locally inspected package.
+
+## Pull request checklist
+
+- Link the issue or explain the user problem.
+- Keep unrelated formatting and generated files out of the commit.
+- State exactly which automated and manual checks were performed.
+- Call out Windows-only assumptions and anything not tested on another platform.
+- Update user documentation for settings, storage, network, approval, or compatibility changes.
+- Never use real credentials or private conversation data in tests or screenshots.
+
 ## Coding expectations
 
 - Do not introduce UI scraping, private API interception, credential access, shell interpolation, or automatic approval.
