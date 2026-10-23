@@ -5,7 +5,6 @@
 .codex/**
 .agents/**
 tests/**
-docs/**
 src/**
 node_modules/**
 coverage/**
