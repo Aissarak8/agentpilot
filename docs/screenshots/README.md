@@ -1,13 +1,15 @@
-# Screenshot checklist
+# AgentPilot screenshots
 
-No product screenshots are committed yet. Add only real captures from the current release candidate.
+These are real captures from AgentPilot user-testing sessions in VS Code, not generated mockups.
 
-Recommended captures:
+| File | What it shows | Version and privacy notes |
+| --- | --- | --- |
+| `dashboard-overview.png` | Dashboard overview, lifecycle statistics, token activity, and recent events | Historical v0.9 beta UI. Values are test history, not current billing. |
+| `codex-chat.png` | AgentPilot-owned Codex Chat, conversation list, model selector, and completed status | Deterministically cropped from the supplied real capture to exclude conversation content containing a personal filesystem path. No UI content was generated. |
+| `smart-model-advisor.png` | Local task classification and an evidence-based model recommendation | v1.0 RC UI. The visible usage context is historical evidence, not an independent quality score. |
+| `usage-analytics.png` | Usage range controls, reconciliation controls, provenance warning, and token totals | Historical v0.9 beta UI. Legacy totals may contain the cumulative-snapshot uncertainty documented by the current release and are not provider billing or verified pricing. |
+| `telegram-notification.png` | Metadata-only completion and test notifications delivered by the AgentPilot bot | Bot token and destination chat ID are not visible. Project name and timestamps are non-secret test metadata. |
 
-1. Dashboard overview with synthetic project names and test events.
-2. Codex Chat with a harmless synthetic conversation.
-3. Smart Model Advisor explanation using a generic task.
-4. Usage view containing synthetic or deliberately non-sensitive metadata.
-5. Telegram delivery history with credentials and destination identifiers absent.
+The PNGs were losslessly recompressed; the four uncropped captures retain their original decoded pixels. The Chat crop retains original pixels and removes only the lower region containing the private path.
 
-Before committing, crop account UI and redact usernames, filesystem paths, repository names, prompts, source code, thread IDs, tokens, chat IDs, notifications from unrelated apps, and personal information. Record the exact AgentPilot version used in the pull request; do not label mockups as product screenshots.
+For future additions, use a current real build and remove usernames, local paths, private repository names, prompts, source code, thread IDs, credentials, chat IDs, and unrelated notifications. Never present a mockup as a product screenshot or historical usage totals as current billing.
