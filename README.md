@@ -1,17 +1,26 @@
-# AgentPilot v0.9.2 Premium UI Beta
+# AgentPilot v1.0 Release Candidate
 
-AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `0.9.2-beta.1` adds adaptive dashboard navigation from 300px through wide editor layouts, exact and accessible daily token-chart details, a clearer compact Codex Chat header, refined message presentation, and drawer-only session/current-turn token explanations. Existing process consent, workspace trust, sandbox approvals, local storage, and notification guarantees remain intact. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
+AgentPilot is a local-first VS Code dashboard for coding-agent lifecycle events and verified token-usage metadata. Version `1.0.0-rc.1` is the first stable-release candidate: it preserves the premium Chat and Dashboard, correct per-turn token accounting, Smart Model Advisor, and independent local/Windows/Telegram notifications while tightening process consent, corrupted-store handling, and idle dashboard performance. AgentPilot does not upload prompts, source code, assistant messages, transcripts, authentication tokens, or credentials to its own servers.
 
 The temporary private-beta extension identifier is `agentpilot-local.agentpilot`; `agentpilot-local` is not a Marketplace publisher identity. This VSIX is intended for local installation and is not published to the Marketplace.
 
-## Install the private-beta VSIX
+## Install the release-candidate VSIX
 
 1. In normal VS Code, open **Extensions** and choose **Views and More Actions → Install from VSIX…**.
-2. Select `agentpilot-0.9.2-beta.1.vsix` from the repository root and reload VS Code when prompted.
+2. Select `agentpilot-1.0.0-rc.1.vsix` from the repository root and reload VS Code when prompted.
 3. Open a trusted test workspace, then run **AgentPilot: Open Codex Chat** or **AgentPilot: Open Dashboard** from the Command Palette.
 4. Configure **AgentPilot: Codex CLI Path** if the native `codex.exe` is not already on the Extension Host PATH.
 
 To roll back, uninstall AgentPilot from the Extensions view and reinstall an earlier VSIX if required. Uninstalling the extension does not remove local metadata under `%USERPROFILE%\.agentpilot`; delete that directory separately only after reviewing it and only if you intentionally want to remove the local history. Telegram credentials remain managed by VS Code SecretStorage.
+
+### First-run checklist
+
+1. Open a disposable workspace and decide whether to trust it. AgentPilot Chat and task execution stay blocked in untrusted workspaces.
+2. Open **Settings**, search for `AgentPilot: Codex CLI Path`, and provide an absolute path to a native `codex.exe` if it is not on the Extension Host PATH. PowerShell, `.cmd`, and `.bat` launchers are intentionally rejected.
+3. Open **AgentPilot: Open Codex Chat**. The first Send that needs a process displays a modal confirmation; opening Chat or Dashboard alone does not start Codex.
+4. Open **AgentPilot: Open Dashboard**. Advisor model discovery remains empty until an AgentPilot-owned Codex process has been explicitly authorized.
+5. Configure Telegram only if needed. Bot token and chat ID are stored through VS Code SecretStorage; use **AgentPilot: Diagnose Telegram Connectivity** for sanitized network diagnostics.
+6. In Usage, run **AgentPilot: Dry Run Usage Reconciliation** before interpreting legacy app-server totals. Do not apply a projection unless you have reviewed its uncertainty warning and backup details.
 
 ### Stabilization manual checks
 

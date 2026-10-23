@@ -4,7 +4,7 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const { formatTelegramMessage, safeTelegramDiagnostic, sendTelegramMessage } = require('./telegram');
-const { acquireFileLock } = require('./file-lock');
+const { acquireFileLock, readJsonState } = require('./file-lock');
 
 const MAX_ITEMS = 500;
 const TRANSIENT_HTTP = new Set([500, 502, 503, 504]);
@@ -30,13 +30,8 @@ function atomicWrite(file, value) {
   catch (error) { try { fs.unlinkSync(temporary); } catch {} throw error; }
 }
 
-function readState(file) {
-  try {
-    if (fs.statSync(file).size > 1024 * 1024) return [];
-    const parsed = JSON.parse(fs.readFileSync(file, 'utf8'));
-    return parsed && Array.isArray(parsed.items) ? parsed.items.filter(item => item && typeof item === 'object').slice(-MAX_ITEMS) : [];
-  } catch { return []; }
-}
+function readStateResult(file){const state=readJsonState(file);if(state.status==='missing')return{status:'missing',items:[]};if(state.status!=='ok'||!state.value||!Array.isArray(state.value.items))return{status:'corrupt',items:[]};return{status:'ok',items:state.value.items.filter(item=>item&&typeof item==='object').slice(-MAX_ITEMS)};}
+function readState(file) { return readStateResult(file).items; }
 
 function summarize(items) {
   const counts = { sent:0, pending:0, failed:0, uncertain:0, sending:0 };
@@ -48,7 +43,7 @@ class DeliveryQueue {
   constructor(file, { send=sendTelegramMessage, now=()=>Date.now(), random=Math.random, maxItems=MAX_ITEMS, maxAttempts=5 } = {}) {
     this.file=file; this.send=send; this.now=now; this.random=random; this.maxItems=maxItems; this.maxAttempts=maxAttempts;this.ownerId=`${process.pid}-${crypto.randomUUID()}`;
     this.items=readState(file); this.running=false; this.recentAttempts=[];
-    const release=acquireFileLock(this.file,{now:this.now});if(release)try{this.items=readState(file);if(this.recoverStaleSending())this.save();}finally{release();}
+    const release=acquireFileLock(this.file,{now:this.now});if(release)try{const state=readStateResult(file);this.items=state.items;if(state.status!=='corrupt'&&this.recoverStaleSending())this.save();}finally{release();}
   }
 
   save() {
@@ -58,7 +53,7 @@ class DeliveryQueue {
 
   recoverStaleSending(){let recovered=false;for(const item of this.items)if(item.status==='sending'&&(!item.lastAttemptAt||this.now()-Date.parse(item.lastAttemptAt)>SEND_LEASE_MS)){item.status='uncertain';item.deliveryOwner=null;item.lastErrorCategory='interrupted_during_send';item.nextRetryAt=null;item.updatedAt=new Date(this.now()).toISOString();recovered=true;}return recovered;}
 
-  locked(change){const release=acquireFileLock(this.file,{now:this.now});if(!release)return{status:'busy_external'};try{this.items=readState(this.file);this.recoverStaleSending();return change();}finally{release();}}
+  locked(change){const release=acquireFileLock(this.file,{now:this.now});if(!release)return{status:'busy_external'};try{const state=readStateResult(this.file);this.items=state.items;if(state.status==='corrupt')return{status:'store_corrupt'};this.recoverStaleSending();return change();}finally{release();}}
 
   enqueue(event, { notifyExceptionalSessionEnd=true } = {}) {
     const safe=cleanEvent(event);
@@ -68,7 +63,7 @@ class DeliveryQueue {
       this.items.push(item);this.save();return { status:'queued',item };});
   }
 
-  history() { this.items=readState(this.file);return summarize(this.items); }
+  history() { const state=readStateResult(this.file);this.items=state.items;return{...summarize(this.items),storageStatus:state.status}; }
 
   manualRetry(sourceEventId) {
     return this.locked(()=>{const item=this.items.find(candidate => candidate.sourceEventId === sourceEventId);if (!item || !['failed','uncertain'].includes(item.status)) return false;item.status='pending';item.nextRetryAt=new Date(this.now()).toISOString();item.lastErrorCategory=null;item.updatedAt=item.nextRetryAt;this.save();return true;});
@@ -104,4 +99,4 @@ class DeliveryQueue {
   }
 }
 
-module.exports={ DeliveryQueue, SEND_LEASE_MS, atomicWrite, cleanEvent, readState, summarize };
+module.exports={ DeliveryQueue, SEND_LEASE_MS, atomicWrite, cleanEvent, readState, readStateResult, summarize };

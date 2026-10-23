@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.0-rc.1
+
+- Prevented Dashboard opening from starting Codex without the existing single-use process confirmation.
+- Made malformed or oversized usage, chat, task, Telegram queue, notification-claim, and Advisor stores fail closed instead of being overwritten by the next write.
+- Serialized extension-owned event appends to preserve deduplication across concurrent VS Code windows.
+- Avoided rebuilding the complete Dashboard during idle polling when no lifecycle event changed.
+- Added actionable native-Codex executable guidance and first-run release-candidate instructions.
+- Preserved v0.9.3 cumulative-snapshot accounting and the non-destructive, explicitly approved historical reconciliation workflow.
+
 ## 0.9.3-beta.1
 
 - Fixed Codex app-server token overcounting by converting cumulative current-turn snapshots into persisted nonnegative deltas scoped by provider, session, source, and turn.

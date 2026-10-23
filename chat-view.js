@@ -26,7 +26,7 @@ class ChatViewProvider {
   render(){if(this.view)this.view.webview.postMessage({type:'state',state:publicState(this.controller.state())});}
 }
 
-function readableError(code){return({turn_active:'A turn is already running',session_not_found:'Conversation not found',request_timeout:'Codex did not respond in time',not_running:'The Codex app-server is unavailable',thread_start_failed:'Codex could not create a thread'}[code]||'The request failed');}
+function readableError(code){return({turn_active:'A turn is already running',session_not_found:'Conversation not found',request_timeout:'Codex did not respond in time',not_running:'The Codex app-server is unavailable',thread_start_failed:'Codex could not create a thread',executable_not_found:'Native Codex executable not found. Set AgentPilot: Codex CLI Path to an absolute codex.exe path'}[code]||'The request failed');}
 function startupPrompt(requirement,cwd){const project=String(cwd||'workspace').split(/[\\/]/).pop()||'workspace',detail='AgentPilot sends this task only to the Codex process it starts. It does not bypass sandbox or approval settings.';if(requirement==='restart_process')return{message:`Restart the AgentPilot-owned Codex process in ${project} and resume this conversation using your existing sandbox and approval policy?`,detail};if(requirement==='start_thread')return{message:`Start a new AgentPilot-owned Codex conversation in ${project} using the running Codex process and your existing sandbox and approval policy?`,detail};return{message:`Start an AgentPilot-owned Codex conversation in ${project} using your existing sandbox and approval policy?`,detail};}
 
 function renderChatBase(nonce='agentpilot-chat'){

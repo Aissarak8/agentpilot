@@ -3,6 +3,7 @@
 const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const { corruptStoreError,readJsonState }=require('./file-lock');
 
 const TOKEN_FIELDS = ['inputTokens', 'outputTokens', 'cachedInputTokens', 'reasoningTokens', 'cacheCreationInputTokens', 'totalTokens'];
 const asCount = value => Number.isFinite(Number(value)) && Number(value) >= 0 ? Math.trunc(Number(value)) : undefined;
@@ -84,14 +85,12 @@ class ClaudeUsageAdapter {
 }
 
 class UsageStore {
-  constructor(file, options = {}) { this.file = file; this.maxRecords = options.maxRecords || 5000; this.retentionDays = options.retentionDays || 90; this.records = []; this.cursors = {}; this.load(); }
+  constructor(file, options = {}) { this.file = file; this.maxRecords = options.maxRecords || 5000; this.retentionDays = options.retentionDays || 90; this.records = []; this.cursors = {}; this.loadStatus='missing';this.load(); }
   load() {
-    try {
-      const stat = fs.statSync(this.file); if (stat.size > 5 * 1024 * 1024) return;
-      const parsed = JSON.parse(fs.readFileSync(this.file, 'utf8'));
-      this.records = Array.isArray(parsed.records) ? parsed.records.filter(item => item && typeof item.id === 'string').slice(-this.maxRecords) : [];
-      this.cursors = parsed.cursors && typeof parsed.cursors === 'object' ? parsed.cursors : {};
-    } catch { this.records = []; this.cursors = {}; }
+    const state=readJsonState(this.file,{maxBytes:5*1024*1024});this.loadStatus=state.status;
+    if(state.status==='missing'){this.records=[];this.cursors={};return;}
+    if(state.status!=='ok'||!state.value||typeof state.value!=='object'||!Array.isArray(state.value.records)){this.loadStatus='corrupt';this.records=[];this.cursors={};return;}
+    const parsed=state.value;this.records=parsed.records.filter(item=>item&&typeof item.id==='string').slice(-this.maxRecords);this.cursors=parsed.cursors&&typeof parsed.cursors==='object'?parsed.cursors:{};
     this.prune(false);
   }
   prune(save = true) {
@@ -108,6 +107,7 @@ class UsageStore {
   }
   addLocked(record) {
     this.load();
+    if(this.loadStatus==='corrupt'||this.loadStatus==='oversized')return{status:'store_corrupt'};
     if (!record || this.records.some(item => item.id === record.id)) return { status: 'duplicate' };
     let stored = { ...record };
     if (record.accounting === 'cumulative') {
@@ -123,10 +123,11 @@ class UsageStore {
     this.records.push(stored); this.prune(false); this.save(); return { status: 'stored', record: stored };
   }
   save() {
+    if(this.loadStatus==='corrupt'||this.loadStatus==='oversized')throw corruptStoreError();
     fs.mkdirSync(path.dirname(this.file), { recursive: true });
     const temp = `${this.file}.${process.pid}.${Date.now()}.tmp`;
     fs.writeFileSync(temp, JSON.stringify({ version: 1, records: this.records, cursors: this.cursors }), { encoding: 'utf8', mode: 0o600 });
-    fs.renameSync(temp, this.file);
+    fs.renameSync(temp, this.file);this.loadStatus='ok';
   }
 }
 
