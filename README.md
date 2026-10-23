@@ -111,7 +111,35 @@ More detail is available in [Troubleshooting](docs/TROUBLESHOOTING.md).
 
 ## Screenshots
 
-Real screenshots have not yet been committed. See [docs/screenshots/README.md](docs/screenshots/README.md) for the required capture and redaction checklist. Placeholder images are intentionally not presented as product output.
+Real screenshots from AgentPilot running in VS Code. Images are cropped from actual user testing sessions, not mockups. Some screenshots are from pre-release builds and may show legacy usage totals that are explicitly marked uncertain in the current release.
+
+### Dashboard overview
+
+![AgentPilot dashboard showing lifecycle statistics and token activity](docs/screenshots/dashboard-overview.png)
+
+_Historical v0.9 beta capture. Displayed event and token totals are test-history values, not current billing._
+
+### AgentPilot-owned Codex Chat
+
+![AgentPilot Codex Chat with a completed conversation and model selection](docs/screenshots/codex-chat.png)
+
+_The capture is privacy-cropped to exclude conversation content and a local filesystem path._
+
+### Smart Model Advisor
+
+![AgentPilot Smart Model Advisor recommending an available model for a debugging task](docs/screenshots/smart-model-advisor.png)
+
+### Usage analytics
+
+![AgentPilot usage analytics showing token counts and historical data](docs/screenshots/usage-analytics.png)
+
+_Historical v0.9 beta capture. Legacy totals are illustrative test data and may include the cumulative-snapshot uncertainty described by the current release; they are not provider billing or verified pricing._
+
+### Telegram notifications
+
+![AgentPilot bot notifications delivered to Telegram](docs/screenshots/telegram-notification.png)
+
+_The bot conversation contains metadata-only test and completion notifications; no token or chat ID is shown._
 
 ## Documentation
 
