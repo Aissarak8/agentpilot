@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+    branches:
+      - main
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Run full test suite
+        run: npm test
+
+  package:
+    name: Validate VSIX package
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Set up Node.js 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Build validation VSIX
+        run: npm run package:rc
+      - name: Inspect package contents
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -f agentpilot-1.0.0-rc.1.vsix
+          unzip -Z1 agentpilot-1.0.0-rc.1.vsix | tee /tmp/agentpilot-vsix-files.txt
+          grep -qx 'extension/extension.js' /tmp/agentpilot-vsix-files.txt
+          grep -qx 'extension/package.json' /tmp/agentpilot-vsix-files.txt
+          grep -qx 'extension/scripts/hook.py' /tmp/agentpilot-vsix-files.txt
+          grep -qx 'extension/scripts/windows-toast.ps1' /tmp/agentpilot-vsix-files.txt
+          if grep -Ei '(\.env($|\.)|auth\.json$|credentials\.json$|\.jsonl$|\.log$|(^|/)tests/|(^|/)docs/|agentpilot-readme-screenshots)' /tmp/agentpilot-vsix-files.txt; then
+            echo 'Unexpected private or development-only file found in VSIX.' >&2
+            exit 1
+          fi
