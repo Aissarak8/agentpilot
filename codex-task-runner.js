@@ -21,7 +21,8 @@ function resolveExecutable(value,{env=process.env,platform=process.platform,exis
   const native=platform==='win32'?requested.toLowerCase().endsWith('.exe'):true;
   if(!native)return null;
   const hasPath=path.isAbsolute(requested)||requested.includes('/')||requested.includes('\\');
-  const candidates=hasPath?[requested]:String(env.PATH||'').split(path.delimiter).filter(Boolean).map(folder=>path.join(folder,requested));
+  const delimiter=platform==='win32'?';':':';
+  const candidates=hasPath?[requested]:String(env.PATH||'').split(delimiter).filter(Boolean).map(folder=>path.join(folder,requested));
   return candidates.find(candidate=>{try{return exists(candidate);}catch{return false;}})||null;
 }
 

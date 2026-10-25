@@ -59,5 +59,6 @@
       }
     }
   },
-  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js", "package:rc": "npx --yes @vscode/vsce@4.0.0 package --out agentpilot-1.0.0-rc.1.vsix" }
+  "scripts": { "test": "node --test tests/*.test.js", "codex": "node scripts/codex-exec.js", "package:rc": "npx --yes @vscode/vsce@4.0.0 package --out agentpilot-1.0.0-rc.1.vsix" },
+  "devDependencies": { "@vscode/vsce": "4.0.0" }
 }
