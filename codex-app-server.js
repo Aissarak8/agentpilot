@@ -22,7 +22,7 @@ class CodexAppServerClient extends EventEmitter {
     child.stderr?.on('data',chunk=>{this.stderrCategory=this.stderrCategory||classifyStderr(chunk);});
     child.on('error',error=>this.failAll(classifyProcessError(error)));
     child.on('exit',(code,signal)=>this.onExit(code,signal));
-    try{await this.request('initialize',{clientInfo:this.clientInfo});this.notify('initialized',{});this.ready=true;this.emit('ready');return this;}catch(error){this.stop();throw error;}
+    try{await this.request('initialize',{clientInfo:this.clientInfo});this.notify('initialized',{});this.ready=true;this.emit('ready');return this;}catch(error){const category=this.stderrCategory||error.agentpilotCategory||error.code||'app_server_start';this.stop();throw Object.assign(error,{code:category,agentpilotCategory:category});}
   }
   send(message){if(!this.process?.stdin?.writable)throw Object.assign(new Error('App server is unavailable.'),{code:'not_running'});this.process.stdin.write(`${JSON.stringify(message)}\n`);}
   notify(method,params){this.send({method,params});}
