@@ -5,6 +5,14 @@
 .codex/**
 .agents/**
 tests/**
+docs/**
+agentpilot-readme-screenshots/**
+CONTRIBUTING.md
+SECURITY.md
+CHANGELOG.md
+BETA_RELEASE_NOTES.md
+RELEASE_READINESS_REPORT.md
+TOKEN_USAGE_AUDIT.md
 src/**
 node_modules/**
 coverage/**

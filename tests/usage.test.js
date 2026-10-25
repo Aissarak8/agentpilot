@@ -66,6 +66,21 @@ test('partial cumulative snapshots preserve prior fields and large counts remain
   assert.equal(store.cursors[Object.keys(store.cursors)[0]].cachedInputTokens,2_000_000_000);
 });
 
+test('reconnect, replay, model switch and new-turn snapshots remain idempotent and aggregate consistently',t=>{
+  const file=temporary(t), timestamp=new Date().toISOString(), common={timestamp,provider:'codex',project:'project-a',sessionId:'session-a',source:'codex-app-server',confidence:'verified',accounting:'cumulative'};
+  const first=new UsageStore(file,{retentionDays:36500});
+  assert.equal(first.add({...common,id:'snapshot-1',turnId:'turn-1',model:'model-a',inputTokens:100,cachedInputTokens:40,outputTokens:20,reasoningTokens:5,totalTokens:120}).status,'stored');
+  assert.equal(first.add({...common,id:'snapshot-replay-new-id',turnId:'turn-1',model:'model-a',inputTokens:100,cachedInputTokens:40,outputTokens:20,reasoningTokens:5,totalTokens:120}).status,'duplicate');
+  const resumed=new UsageStore(file,{retentionDays:36500});
+  assert.equal(resumed.add({...common,id:'stale-after-reconnect',turnId:'turn-1',model:'model-b',inputTokens:90,cachedInputTokens:35,outputTokens:19,reasoningTokens:4,totalTokens:109}).status,'stale');
+  const delta=resumed.add({...common,id:'snapshot-2',turnId:'turn-1',model:'model-b',inputTokens:130,cachedInputTokens:50,outputTokens:25,reasoningTokens:7,totalTokens:155});
+  assert.deepEqual({input:delta.record.inputTokens,cached:delta.record.cachedInputTokens,output:delta.record.outputTokens,reasoning:delta.record.reasoningTokens,total:delta.record.totalTokens},{input:30,cached:10,output:5,reasoning:2,total:35});
+  assert.equal(resumed.add({...common,id:'turn-2-first',turnId:'turn-2',model:'model-b',inputTokens:10,cachedInputTokens:2,outputTokens:2,reasoningTokens:1,totalTokens:12}).record.totalTokens,12);
+  const analytics=usageAnalytics(new UsageStore(file,{retentionDays:36500}).records,new CostEstimator(),{days:0});
+  assert.equal(analytics.totals.totalTokens,167);assert.equal(analytics.totals.cachedInputTokens,52);assert.equal(analytics.totals.reasoningTokens,8);
+  assert.equal(analytics.byProvider.codex.totalTokens,167);assert.equal(analytics.byProject['project-a'].totalTokens,167);assert.equal(analytics.byModel['model-a'].totalTokens,120);assert.equal(analytics.byModel['model-b'].totalTokens,47);
+});
+
 test('cost estimator handles cached input and makes unknown pricing unavailable', () => {
   const estimator=new CostEstimator({}, {'codex:m':{input:2,cachedInput:1,output:4,unit:1000,currency:'USD',source:'official',effectiveDate:'2026-01-01'}});
   const result=estimator.estimate({provider:'codex',model:'m',inputTokens:100,cachedInputTokens:50,outputTokens:25});
