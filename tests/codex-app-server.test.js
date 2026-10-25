@@ -6,7 +6,7 @@ const fs=require('fs');
 const os=require('os');
 const path=require('path');
 const test=require('node:test');
-const { CodexAppServerClient }=require('../codex-app-server');
+const { CodexAppServerClient,MAX_PENDING_APPROVALS }=require('../codex-app-server');
 const { UsageStore }=require('../usage');
 
 function fakeChild(handler){const child=new EventEmitter();child.pid=42;child.stdout=new EventEmitter();child.stderr=new EventEmitter();child.stdin={writable:true,writes:[],write(value){this.writes.push(value);handler?.(JSON.parse(value),child);return true;},end(){this.writable=false;}};child.kill=()=>{};return child;}
@@ -30,3 +30,5 @@ test('ignores malformed messages, sanitizes failures, and cleans up the process'
 test('rejects malformed approval requests without presenting or approving them',async t=>{const env=setup(t,(message,child)=>{if(message.method==='initialize')reply(child,{id:message.id,result:{}});});await env.client.start();let approvals=0,diagnostic;env.client.on('approval',()=>approvals++);env.client.on('diagnostic',value=>diagnostic=value);env.child.stdout.emit('data','{"id":99,"method":"item/fileChange/requestApproval","params":{"reason":"missing identifiers"}}\n');assert.equal(approvals,0);assert.equal(diagnostic.category,'malformed_approval_request');assert.deepEqual(JSON.parse(env.child.stdin.writes.at(-1)),{id:99,error:{code:-32602,message:'Invalid approval request'}});assert.equal(env.client.pendingApprovals.size,0);env.client.stop();});
 
 test('startup reports the sanitized Codex stderr category instead of a generic timeout',async t=>{const env=setup(t,()=>{});const started=env.client.start();env.child.stderr.emit('data','Not logged in: PRIVATE account detail');await assert.rejects(started,error=>error.code==='authentication'&&error.agentpilotCategory==='authentication'&&!String(error.message).includes('PRIVATE'));});
+
+test('approval queue is bounded and excess requests fail closed',async t=>{const env=setup(t,(message,child)=>{if(message.method==='initialize')reply(child,{id:message.id,result:{}});});await env.client.start();let approvals=0,diagnostic;env.client.on('approval',()=>approvals++);env.client.on('diagnostic',value=>diagnostic=value);for(let id=1;id<=MAX_PENDING_APPROVALS+1;id++)env.client.consumeLine(JSON.stringify({id:`approval-${id}`,method:'item/commandExecution/requestApproval',params:{threadId:'thread',turnId:'turn'}}));assert.equal(approvals,MAX_PENDING_APPROVALS);assert.equal(env.client.pendingApprovals.size,MAX_PENDING_APPROVALS);assert.equal(diagnostic.category,'approval_queue_full');assert.deepEqual(JSON.parse(env.child.stdin.writes.at(-1)),{id:`approval-${MAX_PENDING_APPROVALS+1}`,error:{code:-32000,message:'Too many pending approval requests'}});env.client.stop();});
